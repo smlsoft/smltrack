@@ -261,6 +261,7 @@ export default function Home() {
             <Link href="/crm" className="px-3 py-1.5 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 rounded-lg text-xs text-cyan-300 hover:text-white transition">👥 CRM</Link>
             <Link href="/kpi" className="px-3 py-1.5 bg-purple-900/50 hover:bg-purple-800/50 border border-purple-700/50 rounded-lg text-xs text-purple-300 hover:text-white transition">📊 KPI</Link>
             <Link href="/advice" className="px-3 py-1.5 bg-orange-900/50 hover:bg-orange-800/50 border border-orange-700/50 rounded-lg text-xs text-orange-300 hover:text-white transition">🦐 น้องกุ้ง</Link>
+            <Link href="/costs" className="px-3 py-1.5 bg-emerald-900/50 hover:bg-emerald-800/50 border border-emerald-700/50 rounded-lg text-xs text-emerald-300 hover:text-white transition">💰 AI Cost</Link>
             <Link href="/config" className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-white transition">⚙️</Link>
             <ThemeToggle />
             <div className="flex items-center gap-1.5">

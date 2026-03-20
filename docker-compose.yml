@@ -1,4 +1,25 @@
 services:
+  # === ClawTeam — AI Advisor (แกนหลัก) ===
+  clawteam:
+    build: ./clawteam
+    container_name: smltrack-clawteam
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./clawteam:/app
+    env_file:
+      - .env
+    environment:
+      - AGENT_API_URL=http://agent:3000
+      - AI_MODEL=${AI_MODEL:-qwen/qwen3-235b-a22b}
+    depends_on:
+      - agent
+    healthcheck:
+      test: ["CMD", "python", "-c", "print('ok')"]
+      interval: 60s
+      timeout: 5s
+
   # === AI Agent (LINE + RAG + MCP + Analytics) ===
   agent:
     build: ./proxy

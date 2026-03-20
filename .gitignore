@@ -25,3 +25,9 @@ yarn-debug.log*
 
 # docker
 *.log
+
+# openclaw (legacy folder — ไม่ใช้แล้ว ใช้ clawteam/ แทน)
+openclaw/
+
+# clawteam runtime
+clawteam/__pycache__/

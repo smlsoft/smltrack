@@ -197,6 +197,86 @@ export async function GET() {
     // Overall response time
     const overallResponseTime = calcResponseTime(allMessages);
 
+    // === อัตราปิดการขาย (Pipeline Conversion) ===
+    const pipelineStages = ["new", "interested", "quoting", "negotiating", "closed_won", "closed_lost", "following_up"];
+    const pipelineCounts: Record<string, number> = {};
+    for (const stage of pipelineStages) pipelineCounts[stage] = 0;
+    for (const s of customerSkills) {
+      const stage = s.pipelineStage || "new";
+      pipelineCounts[stage] = (pipelineCounts[stage] || 0) + 1;
+    }
+
+    const totalPipeline = customerSkills.length || 1;
+    const closedWon = pipelineCounts["closed_won"] || 0;
+    const closedLost = pipelineCounts["closed_lost"] || 0;
+    const closedTotal = closedWon + closedLost;
+    const conversionRate = closedTotal > 0 ? Math.round((closedWon / closedTotal) * 100) : 0;
+
+    // อัตราปิดต่อพนักงาน
+    const staffConversion = staffKpi.map((staff) => {
+      const staffRoomIds = staff.rooms.map((r: any) => r.sourceId);
+      const staffCustomers = customerSkills.filter((s) => staffRoomIds.includes(s.sourceId));
+      const won = staffCustomers.filter((s) => s.pipelineStage === "closed_won").length;
+      const lost = staffCustomers.filter((s) => s.pipelineStage === "closed_lost").length;
+      const total = won + lost;
+      return {
+        name: staff.name,
+        totalCustomers: staffCustomers.length,
+        closedWon: won,
+        closedLost: lost,
+        conversionRate: total > 0 ? Math.round((won / total) * 100) : 0,
+        pipeline: {
+          interested: staffCustomers.filter((s) => s.pipelineStage === "interested").length,
+          quoting: staffCustomers.filter((s) => s.pipelineStage === "quoting").length,
+          negotiating: staffCustomers.filter((s) => s.pipelineStage === "negotiating").length,
+        },
+      };
+    });
+
+    // === ลูกค้าหลุด (Inactive > 7 วัน) ===
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
+    const threeDaysAgo = new Date(now.getTime() - 3 * 86400000);
+
+    // หา lastMessageAt ของแต่ละลูกค้า
+    const customerLastMsg: Record<string, { userName: string; lastAt: Date; sourceId: string; roomName: string; pipelineStage: string }> = {};
+    for (const s of customerSkills) {
+      const roomMsgs = messagesByRoom[s.sourceId] || [];
+      const userMsgs = roomMsgs.filter((m: any) => m.userName === s.userName);
+      if (userMsgs.length === 0) continue;
+      const lastMsg = userMsgs[userMsgs.length - 1];
+      const lastAt = new Date(lastMsg.createdAt);
+      const existing = customerLastMsg[s.userName];
+      if (!existing || lastAt > existing.lastAt) {
+        const meta = allMeta.find((m) => m.sourceId === s.sourceId);
+        customerLastMsg[s.userName] = {
+          userName: s.userName,
+          lastAt,
+          sourceId: s.sourceId,
+          roomName: meta?.groupName || s.sourceId.substring(0, 12),
+          pipelineStage: s.pipelineStage || "new",
+        };
+      }
+    }
+
+    const inactiveCustomers = Object.values(customerLastMsg)
+      .filter((c) => c.lastAt < sevenDaysAgo)
+      .map((c) => ({
+        ...c,
+        daysSinceLastMsg: Math.round((now.getTime() - c.lastAt.getTime()) / 86400000),
+        level: c.lastAt < new Date(now.getTime() - 14 * 86400000) ? "red" as const : "yellow" as const,
+      }))
+      .sort((a, b) => b.daysSinceLastMsg - a.daysSinceLastMsg);
+
+    const atRiskCustomers = Object.values(customerLastMsg)
+      .filter((c) => c.lastAt >= sevenDaysAgo && c.lastAt < threeDaysAgo)
+      .map((c) => ({
+        ...c,
+        daysSinceLastMsg: Math.round((now.getTime() - c.lastAt.getTime()) / 86400000),
+        level: "yellow" as const,
+      }))
+      .sort((a, b) => b.daysSinceLastMsg - a.daysSinceLastMsg);
+
     return NextResponse.json({
       summary: {
         totalRooms: allAnalytics.length,
@@ -206,8 +286,12 @@ export async function GET() {
         alertCount: alertRooms.length,
         avgResponseMinutes: overallResponseTime.avgMinutes,
         responseTimeLevel: overallResponseTime.level,
+        conversionRate,
+        inactiveCount: inactiveCustomers.length,
+        atRiskCount: atRiskCustomers.length,
       },
       staffKpi: staffKpi.sort((a, b) => b.messageCount - a.messageCount),
+      staffConversion: staffConversion.sort((a, b) => b.totalCustomers - a.totalCustomers),
       customerKpi: customerKpi
         .sort((a, b) => b.messageCount - a.messageCount)
         .filter((c) => c.messageCount > 0),
@@ -216,6 +300,15 @@ export async function GET() {
         const bUrgent = (b.customerSentiment?.level === "red" ? 2 : 0) + (b.purchaseIntent?.level === "red" ? 1 : 0);
         return bUrgent - aUrgent;
       }),
+      pipeline: {
+        counts: pipelineCounts,
+        conversionRate,
+        closedWon,
+        closedLost,
+        totalInPipeline: totalPipeline - closedWon - closedLost,
+      },
+      inactiveCustomers: inactiveCustomers.slice(0, 30),
+      atRiskCustomers: atRiskCustomers.slice(0, 20),
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

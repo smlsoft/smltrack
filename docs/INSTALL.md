@@ -23,6 +23,7 @@
 | MongoDB Atlas | [setup-mongodb.md](setup-mongodb.md) | ฐานข้อมูล (ฟรี M0) |
 | LINE Messaging API | [setup-line.md](setup-line.md) | เชื่อม LINE OA |
 | AI Providers | [setup-ai-providers.md](setup-ai-providers.md) | SambaNova, Groq, Cerebras, OpenRouter, Google (ฟรีทั้งหมด) |
+| **ClawTeam** | [setup-clawteam.md](setup-clawteam.md) | **AI Advisor แกนหลัก** — multi-agent วิเคราะห์แชททุก 1 ชม. |
 | Cloudflare Tunnel | [setup-cloudflare-tunnel.md](setup-cloudflare-tunnel.md) | เปิดให้เข้าจาก Internet (ฟรี) |
 | MCP ERP | ขอจากผู้ดูแลระบบ | เชื่อม ERP (ถ้าใช้) |
 
@@ -39,6 +40,7 @@
 | `OPENROUTER_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | AI Provider (ฟรี) |
 | `GOOGLE_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | Gemini Vision (ฟรี) |
 | `MCP_ERP_API_KEY` | ผู้ดูแลระบบ | เชื่อม ERP (ถ้าใช้) |
+| `AI_MODEL` | [setup-clawteam.md](setup-clawteam.md) | AI model สำหรับ ClawTeam (default: qwen3-235b) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | [setup-cloudflare-tunnel.md](setup-cloudflare-tunnel.md) | Cloudflare Tunnel |
 | `CONFIG_PASSWORD` | ตั้งเอง | รหัสเข้าหน้า Config บน Dashboard |
 
@@ -84,6 +86,9 @@ CEREBRAS_API_KEY=<สมัครที่ cloud.cerebras.ai>
 OPENROUTER_API_KEY=<สมัครที่ openrouter.ai>
 GOOGLE_API_KEY=<สมัครที่ aistudio.google.com>
 
+# === ClawTeam AI Advisor (ใช้ OPENROUTER_API_KEY ตัวเดียวกัน) ===
+AI_MODEL=qwen/qwen3-235b-a22b
+
 # === MCP ERP (เชื่อม ERP — ถ้าไม่ใช้ให้เว้นว่าง) ===
 MCP_ERP_API_KEY=<ขอจากผู้ดูแลระบบ>
 
@@ -110,10 +115,11 @@ docker compose up -d --build
 docker compose ps
 ```
 
-ผลที่ต้องเห็น — **3 containers** สถานะ **running**:
+ผลที่ต้องเห็น — **4 containers** สถานะ **running**:
 
 ```
 NAME                  STATUS
+smltrack-clawteam     Up (healthy)    ← AI Advisor (แกนหลัก)
 smltrack-agent        Up (healthy)
 smltrack-dashboard    Up
 smltrack-tunnel       Up
@@ -139,23 +145,30 @@ LINE OA
 Cloudflare Tunnel (smlclaw.satistang.com)
   │
   ▼
-┌─────────────── Docker Desktop ───────────────┐
-│                                               │
-│  ┌─────────────────┐   ┌──────────────────┐  │
-│  │  agent (proxy/)  │   │  dashboard       │  │
-│  │  Node.js         │   │  Next.js 16      │  │
-│  │  Port: 3000      │   │  Port: 3001      │  │
-│  │                  │   │  (host: 3002)    │  │
-│  │  - LINE webhook  │◄──│                  │  │
-│  │  - AI + RAG      │   │  - แสดงแชท       │  │
-│  │  - MCP ERP tools │   │  - CRM / KPI     │  │
-│  └────────┬─────────┘   └──────────────────┘  │
-│           │                                    │
-│  ┌────────┴─────────┐                          │
-│  │  tunnel           │                          │
-│  │  (cloudflared)    │──► Internet              │
-│  └──────────────────┘                          │
-└───────────────────────────────────────────────┘
+┌──────────────────── Docker Desktop ────────────────────┐
+│                                                         │
+│  ┌──────────────────┐                                   │
+│  │  ClawTeam         │  ← AI Advisor (แกนหลัก)          │
+│  │  Port: 8080       │  ← multi-agent ทุก 1 ชม.        │
+│  │  - 3 AI agents    │  ← cost tracking                │
+│  └────────┬─────────┘                                   │
+│           │ API                                          │
+│           ▼                                              │
+│  ┌─────────────────┐   ┌──────────────────┐             │
+│  │  agent (proxy/)  │   │  dashboard       │             │
+│  │  Node.js         │   │  Next.js         │             │
+│  │  Port: 3000      │   │  Port: 3001      │             │
+│  │                  │   │  (host: 3002)    │             │
+│  │  - LINE webhook  │◄──│                  │             │
+│  │  - AI + RAG      │   │  - แสดงแชท       │             │
+│  │  - MCP ERP tools │   │  - CRM / KPI     │             │
+│  │  - Advisor API   │   │  - Advice / Cost  │             │
+│  └────────┬─────────┘   └──────────────────┘             │
+│           │                                              │
+│  ┌────────┴─────────┐                                    │
+│  │  tunnel           │──► Internet                       │
+│  └──────────────────┘                                    │
+└──────────────────────────────────────────────────────────┘
             │
             ▼
       MongoDB Atlas (Cloud)
@@ -163,8 +176,9 @@ Cloudflare Tunnel (smlclaw.satistang.com)
 
 | Container | Folder | Port (เครื่อง) | หน้าที่ |
 |-----------|--------|---------------|---------|
-| smltrack-agent | `proxy/` | 3000 | LINE webhook, AI chatbot, RAG, MCP |
-| smltrack-dashboard | `smltrackdashboard/` | 3002 | Web Dashboard (แชท, CRM, KPI) |
+| smltrack-clawteam | `clawteam/` | 8080 | **AI Advisor** — multi-agent, cron ทุก 1 ชม., cost tracking |
+| smltrack-agent | `proxy/` | 3000 | LINE webhook, AI chatbot, RAG, MCP, Advisor API |
+| smltrack-dashboard | `smltrackdashboard/` | 3002 | Web Dashboard (แชท, CRM, KPI, Advice, Cost) |
 | smltrack-tunnel | cloudflare image | — | เปิดให้เข้าจาก Internet |
 
 ---
@@ -308,10 +322,12 @@ ports:
 - [ ] `cd smltrack`
 - [ ] สร้างไฟล์ `.env` พร้อมใส่ค่าทั้งหมด (ขอจากผู้ดูแลระบบ)
 - [ ] `docker compose up -d --build`
-- [ ] `docker compose ps` → 3 containers running
-- [ ] ทดสอบ http://localhost:3000/ → OK
+- [ ] `docker compose ps` → 4 containers running
+- [ ] ทดสอบ http://localhost:8080/ → ClawTeam Board
+- [ ] ทดสอบ http://localhost:3000/ → Agent OK
 - [ ] ทดสอบ http://localhost:3002/dashboard → เห็น Dashboard
 - [ ] ทดสอบส่งข้อความ LINE → บอทตอบ
+- [ ] ClawTeam cron ทำงาน → ดู [setup-clawteam.md](setup-clawteam.md)
 
 ---
 

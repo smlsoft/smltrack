@@ -26,12 +26,28 @@ interface RoomData {
   userCount: number; customerCount: number; staffCount: number; updatedAt: string | null;
 }
 
+interface StaffConversion {
+  name: string; totalCustomers: number; closedWon: number; closedLost: number; conversionRate: number;
+  pipeline: { interested: number; quoting: number; negotiating: number };
+}
+
+interface InactiveCustomer {
+  userName: string; lastAt: string; sourceId: string; roomName: string;
+  pipelineStage: string; daysSinceLastMsg: number; level: "yellow" | "red";
+}
+
+interface PipelineData {
+  counts: Record<string, number>; conversionRate: number; closedWon: number; closedLost: number; totalInPipeline: number;
+}
+
 interface KpiData {
   summary: {
     totalRooms: number; totalMessages: number; totalStaff: number;
     totalCustomers: number; alertCount: number; avgResponseMinutes: number; responseTimeLevel: string;
+    conversionRate: number; inactiveCount: number; atRiskCount: number;
   };
-  staffKpi: StaffKpi[]; customerKpi: CustomerKpi[]; rooms: RoomData[];
+  staffKpi: StaffKpi[]; staffConversion: StaffConversion[]; customerKpi: CustomerKpi[]; rooms: RoomData[];
+  pipeline: PipelineData; inactiveCustomers: InactiveCustomer[]; atRiskCustomers: InactiveCustomer[];
 }
 
 const LC = {
@@ -43,6 +59,14 @@ const LC = {
 const SL: Record<string, string> = { green: "ปกติ", yellow: "ติดตาม", red: "ไม่พอใจ" };
 const PL: Record<string, string> = { green: "ไม่สนใจ", yellow: "เริ่มสนใจ", red: "สนใจซื้อ!" };
 const RL: Record<string, string> = { green: "เร็ว", yellow: "ปานกลาง", red: "ช้า" };
+const PIPELINE_LABELS: Record<string, string> = {
+  new: "ใหม่", interested: "สนใจ", quoting: "เสนอราคา", negotiating: "ต่อรอง",
+  closed_won: "ปิดได้", closed_lost: "ปิดไม่ได้", following_up: "ติดตาม",
+};
+const PIPELINE_COLORS: Record<string, string> = {
+  new: "bg-gray-500", interested: "bg-blue-500", quoting: "bg-cyan-500", negotiating: "bg-amber-500",
+  closed_won: "bg-emerald-500", closed_lost: "bg-red-500", following_up: "bg-purple-500",
+};
 
 function Badge({ level, label }: { level: string; label: string }) {
   const c = LC[level as keyof typeof LC] || LC.green;
@@ -97,7 +121,7 @@ function ResponseTimeDetail({ rt }: { rt: ResponseTime }) {
   );
 }
 
-type Tab = "all" | "alert" | "staff" | "customers" | "rooms";
+type Tab = "all" | "alert" | "staff" | "customers" | "rooms" | "pipeline" | "inactive";
 
 export default function KpiPage() {
   const [data, setData] = useState<KpiData | null>(null);
@@ -116,7 +140,7 @@ export default function KpiPage() {
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400 animate-pulse">Loading...</div></div>;
   if (!data) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-red-400">Failed</div></div>;
 
-  const { summary: s, staffKpi, customerKpi, rooms } = data;
+  const { summary: s, staffKpi, staffConversion, customerKpi, rooms, pipeline, inactiveCustomers, atRiskCustomers } = data;
   const filteredRooms = tab === "alert" ? rooms.filter((r) => r.customerSentiment?.level === "red" || r.purchaseIntent?.level === "red")
     : staffFilter ? rooms.filter((r) => staffKpi.find((s) => s.name === staffFilter)?.rooms.some((sr) => sr.sourceId === r.sourceId)) : rooms;
   const filteredStaff = staffFilter ? staffKpi.filter((st) => st.name === staffFilter) : staffKpi;
@@ -144,7 +168,7 @@ export default function KpiPage() {
 
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-9 gap-3">
           {[
             { label: "ห้อง", value: s.totalRooms, icon: "💬", color: "border-blue-500/30" },
             { label: "ข้อความ", value: s.totalMessages.toLocaleString(), icon: "📨", color: "border-gray-700" },
@@ -152,6 +176,9 @@ export default function KpiPage() {
             { label: "ลูกค้า", value: s.totalCustomers, icon: "👥", color: "border-cyan-500/30" },
             { label: "ต้องดูแล", value: s.alertCount, icon: "🚨", color: s.alertCount > 0 ? "border-red-500/50 bg-red-500/5" : "border-gray-700" },
             { label: "ตอบเฉลี่ย", value: formatTime(s.avgResponseMinutes), icon: "⏱️", color: s.responseTimeLevel === "red" ? "border-red-500/50 bg-red-500/5" : s.responseTimeLevel === "yellow" ? "border-amber-500/30" : "border-emerald-500/30" },
+            { label: "ปิดการขาย", value: `${s.conversionRate || 0}%`, icon: "🎯", color: (s.conversionRate || 0) >= 50 ? "border-emerald-500/30" : (s.conversionRate || 0) >= 20 ? "border-amber-500/30" : "border-gray-700" },
+            { label: "ลูกค้าหลุด", value: s.inactiveCount || 0, icon: "😴", color: (s.inactiveCount || 0) > 0 ? "border-red-500/50 bg-red-500/5" : "border-gray-700" },
+            { label: "เสี่ยงหลุด", value: s.atRiskCount || 0, icon: "⚠️", color: (s.atRiskCount || 0) > 0 ? "border-amber-500/30" : "border-gray-700" },
           ].map((c) => (
             <div key={c.label} className={`rounded-xl border ${c.color} bg-gray-900/50 p-3`}>
               <div className="flex items-center justify-between">
@@ -167,7 +194,9 @@ export default function KpiPage() {
         <div className="flex items-center gap-2 flex-wrap">
           {([
             { key: "all", label: "ทั้งหมด" }, { key: "alert", label: `ต้องดูแล (${s.alertCount})` },
-            { key: "staff", label: "👔 พนักงาน" }, { key: "customers", label: "👥 ลูกค้า" }, { key: "rooms", label: "💬 ห้อง" },
+            { key: "staff", label: "👔 พนักงาน" }, { key: "pipeline", label: "🎯 ปิดการขาย" },
+            { key: "inactive", label: `😴 ลูกค้าหลุด (${(s.inactiveCount || 0) + (s.atRiskCount || 0)})` },
+            { key: "customers", label: "👥 ลูกค้า" }, { key: "rooms", label: "💬 ห้อง" },
           ] as const).map(({ key, label }) => (
             <button key={key} onClick={() => { setTab(key); setStaffFilter(""); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${tab === key ? "bg-white text-black" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>{label}</button>
@@ -318,6 +347,133 @@ export default function KpiPage() {
                 </table>
               </div>
             )}
+          </section>
+        )}
+
+        {/* Pipeline / อัตราปิดการขาย */}
+        {(tab === "all" || tab === "pipeline") && pipeline && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">🎯 Pipeline &amp; อัตราปิดการขาย</h2>
+
+            {/* Pipeline funnel */}
+            <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl font-bold">{pipeline.conversionRate}%</span>
+                <span className="text-sm text-gray-400">อัตราปิดการขาย</span>
+                <span className="text-xs text-gray-600">({pipeline.closedWon} ปิดได้ / {pipeline.closedWon + pipeline.closedLost} ปิดทั้งหมด)</span>
+              </div>
+              <div className="flex gap-1 h-8 rounded-lg overflow-hidden mb-3">
+                {Object.entries(pipeline.counts).map(([stage, count]) => {
+                  const total = Object.values(pipeline.counts).reduce((a, b) => a + b, 0) || 1;
+                  const pct = (count / total) * 100;
+                  if (count === 0) return null;
+                  return (
+                    <div key={stage} className={`${PIPELINE_COLORS[stage] || "bg-gray-500"} flex items-center justify-center text-[10px] font-bold text-white`}
+                      style={{ width: `${pct}%`, minWidth: 28 }} title={`${PIPELINE_LABELS[stage] || stage}: ${count}`}>
+                      {count}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-3 text-[11px]">
+                {Object.entries(pipeline.counts).map(([stage, count]) => (
+                  <div key={stage} className="flex items-center gap-1">
+                    <div className={`w-2.5 h-2.5 rounded-sm ${PIPELINE_COLORS[stage] || "bg-gray-500"}`} />
+                    <span className="text-gray-400">{PIPELINE_LABELS[stage] || stage}</span>
+                    <span className="font-medium">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Staff conversion table */}
+            {staffConversion && staffConversion.length > 0 && (
+              <div>
+                <h3 className="text-sm font-bold mb-2 text-gray-300">👔 อัตราปิดต่อพนักงาน</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-[11px] text-gray-500 border-b border-gray-800">
+                        <th className="pb-2 pr-4">พนักงาน</th>
+                        <th className="pb-2 px-2 text-center">ลูกค้า</th>
+                        <th className="pb-2 px-2 text-center">สนใจ</th>
+                        <th className="pb-2 px-2 text-center">เสนอราคา</th>
+                        <th className="pb-2 px-2 text-center">ต่อรอง</th>
+                        <th className="pb-2 px-2 text-center">ปิดได้</th>
+                        <th className="pb-2 px-2 text-center">ปิดไม่ได้</th>
+                        <th className="pb-2 px-2 text-center">อัตราปิด</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800/50">
+                      {staffConversion.map((sc) => (
+                        <tr key={sc.name} className="hover:bg-gray-900/50">
+                          <td className="py-2 pr-4 font-medium">{sc.name}</td>
+                          <td className="py-2 px-2 text-center text-gray-400">{sc.totalCustomers}</td>
+                          <td className="py-2 px-2 text-center text-blue-400">{sc.pipeline.interested || "-"}</td>
+                          <td className="py-2 px-2 text-center text-cyan-400">{sc.pipeline.quoting || "-"}</td>
+                          <td className="py-2 px-2 text-center text-amber-400">{sc.pipeline.negotiating || "-"}</td>
+                          <td className="py-2 px-2 text-center text-emerald-400 font-bold">{sc.closedWon || "-"}</td>
+                          <td className="py-2 px-2 text-center text-red-400">{sc.closedLost || "-"}</td>
+                          <td className="py-2 px-2 text-center">
+                            <span className={`font-bold ${sc.conversionRate >= 50 ? "text-emerald-400" : sc.conversionRate >= 20 ? "text-amber-400" : "text-gray-500"}`}>
+                              {sc.closedWon + sc.closedLost > 0 ? `${sc.conversionRate}%` : "-"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ลูกค้าหลุด / เสี่ยงหลุด */}
+        {(tab === "all" || tab === "inactive") && (inactiveCustomers?.length > 0 || atRiskCustomers?.length > 0) && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">😴 ลูกค้าหลุด &amp; เสี่ยงหลุด</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* ลูกค้าหลุด (>7 วัน) */}
+              {inactiveCustomers?.length > 0 && (
+                <div className="bg-gray-900/50 border border-red-500/20 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-red-400 mb-3">🔴 ลูกค้าหลุด ({inactiveCustomers.length} คน) <span className="text-[10px] text-gray-500 font-normal">ไม่มีข้อความ &gt; 7 วัน</span></h3>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {inactiveCustomers.map((c, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm p-2 rounded-lg bg-gray-800/50">
+                        <div>
+                          <p className="font-medium">{c.userName}</p>
+                          <p className="text-[10px] text-gray-500">{c.roomName} &middot; {PIPELINE_LABELS[c.pipelineStage] || c.pipelineStage}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge level={c.level} label={`${c.daysSinceLastMsg} วัน`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* เสี่ยงหลุด (3-7 วัน) */}
+              {atRiskCustomers?.length > 0 && (
+                <div className="bg-gray-900/50 border border-amber-500/20 rounded-xl p-4">
+                  <h3 className="text-sm font-bold text-amber-400 mb-3">🟡 เสี่ยงหลุด ({atRiskCustomers.length} คน) <span className="text-[10px] text-gray-500 font-normal">ไม่มีข้อความ 3-7 วัน</span></h3>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {atRiskCustomers.map((c, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm p-2 rounded-lg bg-gray-800/50">
+                        <div>
+                          <p className="font-medium">{c.userName}</p>
+                          <p className="text-[10px] text-gray-500">{c.roomName} &middot; {PIPELINE_LABELS[c.pipelineStage] || c.pipelineStage}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge level="yellow" label={`${c.daysSinceLastMsg} วัน`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
         )}
 

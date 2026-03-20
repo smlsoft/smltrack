@@ -54,6 +54,49 @@ async function getDB() {
 // === Collection เดียว: messages (แยกด้วย sourceId field) ===
 const MESSAGES_COLL = "messages";
 
+// === AI Cost Tracking ===
+// ราคาโดยประมาณต่อ 1M tokens (USD)
+const AI_PRICING = {
+  "OR-Nemotron": { input: 0, output: 0 },
+  "OR-Llama": { input: 0, output: 0 },
+  "OR-Trinity": { input: 0, output: 0 },
+  "SambaNova": { input: 0, output: 0 },
+  "Groq": { input: 0.059, output: 0.079 },
+  "Cerebras": { input: 0.01, output: 0.01 },
+  "Gemini": { input: 0, output: 0 },
+  "Gemini-Embed": { input: 0, output: 0 },
+  "openrouter": { input: 0.18, output: 0.18 }, // qwen3-235b paid
+  "OR-Vision": { input: 0, output: 0 },
+  "Groq-Vision": { input: 0.059, output: 0.079 },
+  "Gemini-Vision": { input: 0, output: 0 },
+};
+
+async function trackAICost({ provider, model, feature, inputTokens = 0, outputTokens = 0, sourceId = null, success = true }) {
+  try {
+    const database = await getDB();
+    if (!database) return;
+
+    const pricing = AI_PRICING[provider] || { input: 0, output: 0 };
+    const totalTokens = inputTokens + outputTokens;
+    const costUsd = (inputTokens * pricing.input + outputTokens * pricing.output) / 1000000;
+
+    await database.collection("ai_costs").insertOne({
+      provider,
+      model: model || provider,
+      feature, // chat-reply, sentiment, advice, embedding, vision, light-ai
+      inputTokens,
+      outputTokens,
+      totalTokens,
+      costUsd: Math.round(costUsd * 1000000) / 1000000, // 6 decimal
+      sourceId,
+      success,
+      createdAt: new Date(),
+    });
+  } catch (e) {
+    // silent — ไม่ให้ cost tracking พัง main flow
+  }
+}
+
 // === Bot Config ต่อ group/คน — personality แยกเด็ดขาด ===
 const botConfigCache = {}; // cache ไม่ต้อง query ทุกครั้ง
 
@@ -183,7 +226,14 @@ async function callLightAI(messages, { json = false, maxTokens = 500, timeout = 
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (data.choices?.[0]?.message?.content) return data.choices[0].message.content;
+      if (data.choices?.[0]?.message?.content) {
+        trackAICost({
+          provider: p.name, model: p.model, feature: json ? "light-ai-json" : "light-ai",
+          inputTokens: data.usage?.prompt_tokens || 0,
+          outputTokens: data.usage?.completion_tokens || 0,
+        });
+        return data.choices[0].message.content;
+      }
       // Rate limit → cooldown 5 นาที
       if (data.error) {
         const errMsg = data.error.message || "";
@@ -219,7 +269,14 @@ async function callLightAI(messages, { json = false, maxTokens = 500, timeout = 
         }
       );
       const data = await res.json();
-      if (data.candidates?.[0]?.content?.parts?.[0]?.text) return data.candidates[0].content.parts[0].text;
+      if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        trackAICost({
+          provider: "Gemini", model: "gemini-2.0-flash", feature: json ? "light-ai-json" : "light-ai",
+          inputTokens: data.usageMetadata?.promptTokenCount || 0,
+          outputTokens: data.usageMetadata?.candidatesTokenCount || 0,
+        });
+        return data.candidates[0].content.parts[0].text;
+      }
       if (data.error) {
         lightAICooldown["Gemini"] = Date.now() + 1800000;
         console.log("[LightAI] Gemini rate limited → cooldown 30m");
@@ -249,7 +306,11 @@ async function getEmbedding(text) {
       }
     );
     const data = await res.json();
-    return data.embedding?.values || null;
+    if (data.embedding?.values) {
+      trackAICost({ provider: "Gemini-Embed", model: "gemini-embedding-001", feature: "embedding", inputTokens: Math.ceil(text.length / 4) });
+      return data.embedding.values;
+    }
+    return null;
   } catch (e) {
     console.error("[Embed] Error:", e.message);
     return null;
@@ -294,7 +355,10 @@ async function ensureIndexes() {
     await database.collection("analysis_logs").createIndex({ sourceId: 1, analyzedAt: -1 });
     await database.collection("alerts").createIndex({ createdAt: -1 });
     await database.collection("alerts").createIndex({ read: 1, createdAt: -1 });
-    console.log("[Index] ✅ messages + analysis_logs indexes ready");
+    await database.collection("advisor_pull_log").createIndex({ sourceId: 1 }, { unique: true });
+    await database.collection("ai_costs").createIndex({ createdAt: -1 });
+    await database.collection("ai_costs").createIndex({ feature: 1, createdAt: -1 });
+    console.log("[Index] ✅ messages + analysis_logs + advisor + ai_costs indexes ready");
   } catch (e) {
     if (!e.message?.includes("already exists")) {
       console.error("[Index] Error:", e.message);
@@ -791,6 +855,11 @@ async function callProvider(messages, tools) {
       if (choice) {
         const usage = data.usage || {};
         console.log(`[AI] ✅ ${provider.name} (${provider.model}) tokens: ${usage.total_tokens || 0}`);
+        trackAICost({
+          provider: provider.name, model: provider.model, feature: tools?.length ? "chat-tools" : "chat-reply",
+          inputTokens: usage.prompt_tokens || 0,
+          outputTokens: usage.completion_tokens || 0,
+        });
         return {
           provider: provider.name,
           model: provider.model,
@@ -1853,6 +1922,311 @@ app.post("/advice/generate", async (req, res) => {
   const database = await getDB();
   const latest = await database.collection("ai_advice").findOne({}, { sort: { createdAt: -1 } });
   res.json(latest);
+});
+
+// === Advisor API — ให้ ClawTeam เรียกดึงข้อมูล ===
+// (path ยังเป็น /api/advisor/* เพื่อ backward compatibility)
+
+// ดึง sources ที่มีข้อความใหม่หลัง since
+app.get("/api/advisor/sources-changed", async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.json({ sources: [], queriedAt: new Date().toISOString() });
+
+  const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 3600000);
+  try {
+    // หา sourceId ที่มีข้อความใหม่หลัง since
+    const pipeline = [
+      { $match: { createdAt: { $gte: since } } },
+      {
+        $group: {
+          _id: "$sourceId",
+          lastMessageAt: { $max: "$createdAt" },
+          newMessageCount: { $sum: 1 },
+        },
+      },
+      { $sort: { newMessageCount: -1 } },
+    ];
+    const changed = await database.collection(MESSAGES_COLL).aggregate(pipeline).toArray();
+
+    // เสริมชื่อห้อง
+    const groupsMeta = await database.collection("groups_meta").find({}).toArray();
+    const metaMap = {};
+    for (const g of groupsMeta) metaMap[g.sourceId] = g;
+
+    const sources = changed.map((c) => ({
+      sourceId: c._id,
+      groupName: metaMap[c._id]?.groupName || c._id?.substring(0, 12),
+      sourceType: metaMap[c._id]?.sourceType || "unknown",
+      lastMessageAt: c.lastMessageAt,
+      newMessageCount: c.newMessageCount,
+    }));
+
+    res.json({ sources, queriedAt: new Date().toISOString() });
+  } catch (e) {
+    console.error("[Advisor API] sources-changed error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ดึงรายละเอียด source: ข้อความใหม่ + analytics + skills + alerts
+app.get("/api/advisor/source-detail/:sourceId", async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.status(500).json({ error: "DB not ready" });
+
+  const { sourceId } = req.params;
+  const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 3600000);
+
+  try {
+    // ข้อความใหม่
+    const messages = await database.collection(MESSAGES_COLL)
+      .find({ sourceId, createdAt: { $gte: since } })
+      .sort({ createdAt: 1 })
+      .project({ role: 1, userName: 1, content: 1, createdAt: 1, imageDescription: 1 })
+      .limit(100)
+      .toArray();
+
+    // analytics ล่าสุด
+    const analytics = await database.collection("chat_analytics").findOne({ sourceId }) || {};
+
+    // skills ของ users ใน source
+    const skills = await database.collection("user_skills")
+      .find({ sourceId })
+      .sort({ updatedAt: -1 })
+      .limit(20)
+      .toArray();
+
+    // alerts ล่าสุด
+    const alerts = await database.collection("alerts")
+      .find({ sourceId, createdAt: { $gte: since } })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .toArray();
+
+    // lastPulledAt
+    const pullRecord = await database.collection("advisor_pull_log").findOne({ sourceId });
+
+    // ชื่อห้อง
+    const meta = await database.collection("groups_meta").findOne({ sourceId });
+
+    res.json({
+      sourceId,
+      groupName: meta?.groupName || sourceId?.substring(0, 12),
+      sourceType: meta?.sourceType || "unknown",
+      messages,
+      analytics,
+      skills,
+      alerts,
+      lastPulledAt: pullRecord?.lastPulledAt || null,
+    });
+  } catch (e) {
+    console.error("[Advisor API] source-detail error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// บันทึกคำแนะนำจาก ClawTeam Advisor
+app.post("/api/advisor/advice", express.json(), async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.status(500).json({ error: "DB not ready" });
+
+  const { advice, analyzedSources, pulledAt } = req.body;
+  if (!advice || !Array.isArray(advice)) {
+    return res.status(400).json({ error: "advice array required" });
+  }
+
+  try {
+    // Normalize: รองรับ format ที่ AI อาจส่งมาต่างกัน
+    const normalized = advice.map((a) => ({
+      priority: a.priority || a.type || "info",
+      icon: a.icon || a.emoji || "📋",
+      title: a.title || a.content || a.summary || "คำแนะนำ",
+      detail: a.detail || a.description || a.content || "",
+      action: a.action || a.recommendation || "",
+      relatedRoom: a.relatedRoom || a.room || a.sourceId || null,
+      sourceId: a.sourceId || null,
+    }));
+
+    await database.collection("ai_advice").insertOne({
+      advice: normalized,
+      analyzedSources: analyzedSources || [],
+      source: "clawteam",
+      createdAt: new Date(pulledAt || Date.now()),
+    });
+
+    console.log(`[Advisor] ✅ รับคำแนะนำ ${advice.length} ข้อ จาก ${(analyzedSources || []).length} sources`);
+    res.json({ ok: true, count: advice.length });
+  } catch (e) {
+    console.error("[Advisor API] advice save error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// อัพเดต lastPulledAt ของ sources ที่ ClawTeam ดึงไปแล้ว
+app.post("/api/advisor/update-pulled", express.json(), async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.status(500).json({ error: "DB not ready" });
+
+  const { sourceIds, pulledAt } = req.body;
+  if (!sourceIds || !Array.isArray(sourceIds)) {
+    return res.status(400).json({ error: "sourceIds array required" });
+  }
+
+  const ts = new Date(pulledAt || Date.now());
+  try {
+    const bulk = sourceIds.map((sourceId) => ({
+      updateOne: {
+        filter: { sourceId },
+        update: { $set: { sourceId, lastPulledAt: ts, updatedAt: ts }, $setOnInsert: { createdAt: ts } },
+        upsert: true,
+      },
+    }));
+    await database.collection("advisor_pull_log").bulkWrite(bulk);
+
+    console.log(`[Advisor] 📝 อัพเดต lastPulledAt ${sourceIds.length} sources`);
+    res.json({ ok: true, updated: sourceIds.length });
+  } catch (e) {
+    console.error("[Advisor API] update-pulled error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// === Cost Tracking API ===
+
+// รับ cost จาก ClawTeam/external
+app.post("/api/advisor/cost", express.json(), async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.status(500).json({ error: "DB not ready" });
+
+  const { provider, model, feature, inputTokens, outputTokens, totalTokens, costUsd, sourceId, service } = req.body;
+  try {
+    await database.collection("ai_costs").insertOne({
+      provider: provider || "unknown",
+      model: model || "unknown",
+      feature: feature || "unknown",
+      inputTokens: inputTokens || 0,
+      outputTokens: outputTokens || 0,
+      totalTokens: totalTokens || (inputTokens || 0) + (outputTokens || 0),
+      costUsd: costUsd || 0,
+      sourceId: sourceId || null,
+      service: service || "external",
+      createdAt: new Date(),
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ดึง cost summary สำหรับ dashboard
+app.get("/api/costs", async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.json({ today: {}, weekly: {}, daily: [] });
+
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const weekStart = new Date(todayStart.getTime() - 7 * 86400000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  try {
+    // สรุปรายวัน (7 วันล่าสุด)
+    const dailyPipeline = [
+      { $match: { createdAt: { $gte: weekStart } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          totalTokens: { $sum: "$totalTokens" },
+          totalCost: { $sum: "$costUsd" },
+          calls: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ];
+
+    // สรุปตาม feature
+    const featurePipeline = [
+      { $match: { createdAt: { $gte: weekStart } } },
+      {
+        $group: {
+          _id: "$feature",
+          totalTokens: { $sum: "$totalTokens" },
+          totalCost: { $sum: "$costUsd" },
+          calls: { $sum: 1 },
+          avgTokens: { $avg: "$totalTokens" },
+        },
+      },
+      { $sort: { totalCost: -1 } },
+    ];
+
+    // สรุปตาม provider
+    const providerPipeline = [
+      { $match: { createdAt: { $gte: weekStart } } },
+      {
+        $group: {
+          _id: "$provider",
+          totalTokens: { $sum: "$totalTokens" },
+          totalCost: { $sum: "$costUsd" },
+          calls: { $sum: 1 },
+        },
+      },
+      { $sort: { calls: -1 } },
+    ];
+
+    // วันนี้
+    const todayPipeline = [
+      { $match: { createdAt: { $gte: todayStart } } },
+      {
+        $group: {
+          _id: null,
+          totalTokens: { $sum: "$totalTokens" },
+          totalCost: { $sum: "$costUsd" },
+          calls: { $sum: 1 },
+          inputTokens: { $sum: "$inputTokens" },
+          outputTokens: { $sum: "$outputTokens" },
+        },
+      },
+    ];
+
+    // เดือนนี้
+    const monthPipeline = [
+      { $match: { createdAt: { $gte: monthStart } } },
+      {
+        $group: {
+          _id: null,
+          totalTokens: { $sum: "$totalTokens" },
+          totalCost: { $sum: "$costUsd" },
+          calls: { $sum: 1 },
+        },
+      },
+    ];
+
+    // รายการล่าสุด 20 รายการ
+    const recentCosts = await database.collection("ai_costs")
+      .find({})
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .project({ provider: 1, model: 1, feature: 1, totalTokens: 1, costUsd: 1, createdAt: 1, service: 1 })
+      .toArray();
+
+    const [daily, byFeature, byProvider, todayResult, monthResult] = await Promise.all([
+      database.collection("ai_costs").aggregate(dailyPipeline).toArray(),
+      database.collection("ai_costs").aggregate(featurePipeline).toArray(),
+      database.collection("ai_costs").aggregate(providerPipeline).toArray(),
+      database.collection("ai_costs").aggregate(todayPipeline).toArray(),
+      database.collection("ai_costs").aggregate(monthPipeline).toArray(),
+    ]);
+
+    res.json({
+      today: todayResult[0] || { totalTokens: 0, totalCost: 0, calls: 0, inputTokens: 0, outputTokens: 0 },
+      month: monthResult[0] || { totalTokens: 0, totalCost: 0, calls: 0 },
+      daily,
+      byFeature,
+      byProvider,
+      recent: recentCosts,
+    });
+  } catch (e) {
+    console.error("[Costs API] Error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Health check
