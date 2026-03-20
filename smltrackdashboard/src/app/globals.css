@@ -1,0 +1,223 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ============================================
+   SML ChatFlow — Brand Theme System
+   Primary: Indigo (#6366f1)
+   Accent: Cyan (#06b6d4)
+   ============================================ */
+
+/* Dark theme (default) — Professional dark blue */
+.dark {
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-card: #161d2f;
+  --bg-hover: #1e2740;
+  --border: #252f45;
+  --text-primary: #e8ecf4;
+  --text-secondary: #8b95a8;
+  --text-muted: #5a6478;
+  --primary: #818cf8;
+  --primary-bg: rgba(99,102,241,0.15);
+  --accent: #22d3ee;
+  --accent-bg: rgba(6,182,212,0.15);
+
+  /* iPhone chat */
+  --iphone-frame: #000000;
+  --iphone-frame-border: #374151;
+  --iphone-island: #000000;
+  --iphone-island-dot: #111827;
+  --iphone-island-dot-border: #374151;
+  --iphone-header: #075E54;
+  --iphone-chat-bg: #0B141A;
+  --iphone-chat-pattern: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --iphone-msg-incoming: #1F2C34;
+  --iphone-msg-outgoing: #005C4B;
+  --iphone-msg-text: #ffffff;
+  --iphone-date-badge: #1D2B36;
+  --iphone-date-text: #9ca3af;
+  --iphone-time-text: #9ca3af;
+  --iphone-history-bg: #111B21;
+  --iphone-history-card: #1A2730;
+  --iphone-home-bg: #000000;
+  --iphone-home-bar: #4b5563;
+}
+
+/* Light theme — Clean & professional */
+.light {
+  --bg-primary: #f8f9fc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f3f8;
+  --border: #e2e5ef;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --primary: #6366f1;
+  --primary-bg: rgba(99,102,241,0.08);
+  --accent: #0891b2;
+  --accent-bg: rgba(8,145,178,0.08);
+
+  /* iPhone chat — white/LINE style */
+  --iphone-frame: #ffffff;
+  --iphone-frame-border: #d1d5db;
+  --iphone-island: #1f2937;
+  --iphone-island-dot: #374151;
+  --iphone-island-dot-border: #4b5563;
+  --iphone-header: #008069;
+  --iphone-chat-bg: #ffffff;
+  --iphone-chat-pattern: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --iphone-msg-incoming: #ffffff;
+  --iphone-msg-outgoing: #d9fdd3;
+  --iphone-msg-text: #111827;
+  --iphone-date-badge: #e2e8f0;
+  --iphone-date-text: #4b5563;
+  --iphone-time-text: #6b7280;
+  --iphone-history-bg: #f3f4f6;
+  --iphone-history-card: #e5e7eb;
+  --iphone-home-bg: #ffffff;
+  --iphone-home-bar: #d1d5db;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Smooth theme transition — ใช้ * แต่จำกัด properties ให้น้อย */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease !important;
+  transition-delay: 0s !important;
+}
+
+/* ============================================
+   Theme utility classes
+   ============================================ */
+.theme-bg { background: var(--bg-primary); }
+.theme-bg-secondary { background: var(--bg-secondary); }
+.theme-bg-card { background: var(--bg-card); }
+.theme-bg-hover:hover { background: var(--bg-hover); }
+.theme-border { border-color: var(--border); }
+.theme-text { color: var(--text-primary); }
+.theme-text-secondary { color: var(--text-secondary); }
+.theme-text-muted { color: var(--text-muted); }
+
+/* ============================================
+   Light theme — Tailwind class overrides
+   ============================================ */
+.light .bg-gray-950 { background: var(--bg-primary); }
+.light .bg-gray-950\/95 { background: rgba(248,249,252,0.97); }
+.light .bg-gray-900 { background: var(--bg-secondary); }
+.light .bg-gray-900\/50 { background: rgba(255,255,255,0.85); }
+.light .bg-gray-900\/80 { background: rgba(255,255,255,0.92); }
+.light .bg-gray-800 { background: #e5e7f0; }
+.light .bg-gray-800\/50 { background: rgba(229,231,240,0.5); }
+.light .border-gray-800 { border-color: var(--border); }
+.light .border-gray-700 { border-color: #d1d5e4; }
+.light .text-white { color: var(--text-primary); }
+.light .text-gray-400 { color: var(--text-secondary); }
+.light .text-gray-500 { color: var(--text-muted); }
+.light .text-gray-300 { color: var(--text-secondary); }
+.light .text-gray-600 { color: var(--text-muted); }
+.light .text-green-400 { color: #16a34a; }
+.light .text-green-200 { color: #15803d; }
+
+/* Light — brand color buttons */
+.light .bg-emerald-900\/30 { background: #dcfce7; color: #166534; }
+.light .bg-amber-900\/30 { background: #fef9c3; color: #854d0e; }
+.light .bg-red-900\/30 { background: #fee2e2; color: #991b1b; }
+.light .text-emerald-400 { color: #16a34a; }
+.light .text-amber-400 { color: #d97706; }
+.light .text-red-400 { color: #dc2626; }
+.light .text-cyan-300 { color: var(--accent); }
+.light .text-purple-300 { color: var(--primary); }
+.light .bg-cyan-900\/50 { background: var(--accent-bg); border-color: #a5f3fc !important; }
+.light .bg-purple-900\/50 { background: var(--primary-bg); border-color: #c4b5fd !important; }
+.light .bg-purple-600\/30 { background: var(--primary-bg); }
+.light .text-purple-300 { color: var(--primary); }
+.light .border-purple-500\/30 { border-color: rgba(99,102,241,0.2); }
+.light .border-purple-700\/50 { border-color: rgba(99,102,241,0.25) !important; }
+.light .border-cyan-700\/50 { border-color: rgba(8,145,178,0.25) !important; }
+
+/* Light — hover & tables */
+.light .hover\:bg-gray-700:hover { background: #e5e7f0; }
+.light .hover\:bg-gray-900\/50:hover { background: rgba(0,0,0,0.03); }
+
+/* Light — inputs & forms */
+.light input, .light textarea, .light select {
+  background: #ffffff !important;
+  color: var(--text-primary) !important;
+  border-color: #d1d5e4 !important;
+}
+.light input::placeholder, .light textarea::placeholder {
+  color: #9ca3af !important;
+}
+.light input:focus, .light textarea:focus, .light select:focus {
+  border-color: var(--primary) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-bg);
+}
+
+/* Light — alert banner */
+.light .bg-red-950\/80 { background: #fef2f2; border-color: #fca5a5 !important; }
+.light .bg-red-950\/80 .text-red-400 { color: #dc2626; }
+.light .bg-red-900\/50 { background: #fee2e2; border-color: #fca5a5; }
+.light .bg-amber-900\/50 { background: #fef3c7; border-color: #fcd34d; }
+
+/* ============================================
+   iPhone theme classes (ใช้ CSS variables)
+   ============================================ */
+.iphone-frame {
+  background-color: var(--iphone-frame);
+  border-color: var(--iphone-frame-border);
+}
+.iphone-island { background-color: var(--iphone-island); }
+.iphone-island-dot {
+  background-color: var(--iphone-island-dot);
+  border-color: var(--iphone-island-dot-border);
+}
+.iphone-header { background-color: var(--iphone-header); }
+.iphone-chat-area {
+  background-color: var(--iphone-chat-bg);
+  background-image: var(--iphone-chat-pattern);
+}
+.iphone-msg-incoming {
+  background-color: var(--iphone-msg-incoming);
+  color: var(--iphone-msg-text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.iphone-msg-outgoing {
+  background-color: var(--iphone-msg-outgoing);
+  color: var(--iphone-msg-text);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+.iphone-date-badge {
+  background-color: var(--iphone-date-badge);
+  color: var(--iphone-date-text);
+}
+.iphone-time { color: var(--iphone-time-text); }
+.iphone-history { background-color: var(--iphone-history-bg); }
+.iphone-history-card { background-color: var(--iphone-history-card); }
+.iphone-home {
+  background-color: var(--iphone-home-bg);
+}
+.iphone-home-bar {
+  background-color: var(--iphone-home-bar);
+}
+
+/* ============================================
+   Scrollbar
+   ============================================ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+.dark ::-webkit-scrollbar-thumb { background: #252f45; border-radius: 3px; }
+.light ::-webkit-scrollbar-thumb { background: #d1d5e4; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }

@@ -1,0 +1,44 @@
+services:
+  # === AI Agent (LINE + RAG + MCP + Analytics) ===
+  agent:
+    build: ./proxy
+    container_name: smltrack-agent
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+      - MCP_ERP_URL=http://host.docker.internal:8888/goapi/mcp/sse
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+
+  # === Dashboard (Next.js) ===
+  dashboard:
+    build: ./smltrackdashboard
+    container_name: smltrack-dashboard
+    restart: unless-stopped
+    ports:
+      - "3002:3001"
+    env_file:
+      - .env
+    environment:
+      - PORT=3001
+      - AGENT_URL=http://agent:3000
+    depends_on:
+      - agent
+
+  # === Cloudflare Named Tunnel (URL คงที่) ===
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: smltrack-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - agent
+      - dashboard

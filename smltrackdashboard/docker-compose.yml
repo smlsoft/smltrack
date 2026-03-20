@@ -1,0 +1,10 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_DB=smltrack
+      - PORT=3001
+    restart: unless-stopped

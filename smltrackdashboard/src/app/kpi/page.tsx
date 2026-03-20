@@ -1,0 +1,371 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { ThemeToggle } from "@/components/ThemeProvider";
+
+interface ScoreData { score: number; level: "green" | "yellow" | "red"; reason?: string; }
+interface ResponseTime { avgMinutes: number; level: "green" | "yellow" | "red"; totalResponses: number; fastCount: number; mediumCount: number; slowCount: number; }
+interface StaffRoom { sourceId: string; roomName: string; sentiment: ScoreData | null; purchaseIntent: ScoreData | null; }
+
+interface StaffKpi {
+  name: string; messageCount: number; roomCount: number; rooms: StaffRoom[];
+  responseTime: ResponseTime; customerSatisfaction: ScoreData; sentiment: ScoreData | null;
+}
+
+interface CustomerKpi {
+  name: string; messageCount: number; roomCount: number;
+  sentiment: ScoreData; purchaseIntent: ScoreData;
+}
+
+interface RoomData {
+  sourceId: string; name: string; messageCount: number;
+  customerSentiment: ScoreData | null; staffSentiment: ScoreData | null;
+  overallSentiment: ScoreData | null; purchaseIntent: ScoreData | null;
+  responseTime: ResponseTime;
+  userCount: number; customerCount: number; staffCount: number; updatedAt: string | null;
+}
+
+interface KpiData {
+  summary: {
+    totalRooms: number; totalMessages: number; totalStaff: number;
+    totalCustomers: number; alertCount: number; avgResponseMinutes: number; responseTimeLevel: string;
+  };
+  staffKpi: StaffKpi[]; customerKpi: CustomerKpi[]; rooms: RoomData[];
+}
+
+const LC = {
+  green: { bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-500/30", dot: "bg-emerald-500", bar: "bg-emerald-500" },
+  yellow: { bg: "bg-amber-500/20", text: "text-amber-400", border: "border-amber-500/30", dot: "bg-amber-500", bar: "bg-amber-500" },
+  red: { bg: "bg-red-500/20", text: "text-red-400", border: "border-red-500/30", dot: "bg-red-500", bar: "bg-red-500" },
+};
+
+const SL: Record<string, string> = { green: "ปกติ", yellow: "ติดตาม", red: "ไม่พอใจ" };
+const PL: Record<string, string> = { green: "ไม่สนใจ", yellow: "เริ่มสนใจ", red: "สนใจซื้อ!" };
+const RL: Record<string, string> = { green: "เร็ว", yellow: "ปานกลาง", red: "ช้า" };
+
+function Badge({ level, label }: { level: string; label: string }) {
+  const c = LC[level as keyof typeof LC] || LC.green;
+  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${c.bg} ${c.text} border ${c.border}`}><span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />{label}</span>;
+}
+
+function Bar({ score, level, w = 80 }: { score: number; level: string; w?: number }) {
+  const c = LC[level as keyof typeof LC] || LC.green;
+  return (
+    <div className="flex items-center gap-1.5">
+      <div className="bg-gray-800 rounded-full h-1.5 flex-1" style={{ maxWidth: w }}>
+        <div className={`${c.bar} h-1.5 rounded-full`} style={{ width: `${Math.min(score, 100)}%` }} />
+      </div>
+      <span className="text-[10px] text-gray-500 w-7 text-right">{score}%</span>
+    </div>
+  );
+}
+
+function formatTime(min: number) {
+  if (min === 0) return "-";
+  if (min < 1) return "<1 นาที";
+  if (min < 60) return `${min} นาที`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h} ชม. ${m} น.` : `${h} ชม.`;
+}
+
+function ResponseTimeBadge({ rt }: { rt: ResponseTime }) {
+  if (rt.totalResponses === 0) return <span className="text-gray-600 text-[11px]">-</span>;
+  return (
+    <div className="flex items-center gap-1.5">
+      <Badge level={rt.level} label={formatTime(rt.avgMinutes)} />
+      <span className="text-[10px] text-gray-500">({rt.totalResponses})</span>
+    </div>
+  );
+}
+
+function ResponseTimeDetail({ rt }: { rt: ResponseTime }) {
+  if (rt.totalResponses === 0) return null;
+  const total = rt.totalResponses;
+  return (
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className="text-emerald-400">{rt.fastCount} เร็ว</span>
+      <span className="text-amber-400">{rt.mediumCount} กลาง</span>
+      <span className="text-red-400">{rt.slowCount} ช้า</span>
+      <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden flex">
+        {rt.fastCount > 0 && <div className="bg-emerald-500 h-1.5" style={{ width: `${(rt.fastCount / total) * 100}%` }} />}
+        {rt.mediumCount > 0 && <div className="bg-amber-500 h-1.5" style={{ width: `${(rt.mediumCount / total) * 100}%` }} />}
+        {rt.slowCount > 0 && <div className="bg-red-500 h-1.5" style={{ width: `${(rt.slowCount / total) * 100}%` }} />}
+      </div>
+    </div>
+  );
+}
+
+type Tab = "all" | "alert" | "staff" | "customers" | "rooms";
+
+export default function KpiPage() {
+  const [data, setData] = useState<KpiData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("all");
+  const [staffFilter, setStaffFilter] = useState("");
+
+  const fetchData = useCallback(async () => {
+    try { const r = await fetch("/dashboard/api/kpi"); const d = await r.json(); if (d.summary) setData(d); } catch {}
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { const i = setInterval(fetchData, 10000); return () => clearInterval(i); }, [fetchData]);
+
+  if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400 animate-pulse">Loading...</div></div>;
+  if (!data) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-red-400">Failed</div></div>;
+
+  const { summary: s, staffKpi, customerKpi, rooms } = data;
+  const filteredRooms = tab === "alert" ? rooms.filter((r) => r.customerSentiment?.level === "red" || r.purchaseIntent?.level === "red")
+    : staffFilter ? rooms.filter((r) => staffKpi.find((s) => s.name === staffFilter)?.rooms.some((sr) => sr.sourceId === r.sourceId)) : rooms;
+  const filteredStaff = staffFilter ? staffKpi.filter((st) => st.name === staffFilter) : staffKpi;
+
+  return (
+    <div className="min-h-screen theme-bg theme-text">
+      <header className="border-b border-gray-800 px-6 py-4 sticky top-0 bg-gray-950/95 backdrop-blur z-10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-gray-400 hover:text-white text-xl">&larr;</Link>
+            <div>
+              <h1 className="text-xl font-bold">📊 KPI Dashboard</h1>
+              <p className="text-xs text-gray-400">SML ChatFlow &middot; Real-time</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs text-green-400">Live</span>
+            </div>
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "ห้อง", value: s.totalRooms, icon: "💬", color: "border-blue-500/30" },
+            { label: "ข้อความ", value: s.totalMessages.toLocaleString(), icon: "📨", color: "border-gray-700" },
+            { label: "พนักงาน", value: s.totalStaff, icon: "👔", color: "border-purple-500/30" },
+            { label: "ลูกค้า", value: s.totalCustomers, icon: "👥", color: "border-cyan-500/30" },
+            { label: "ต้องดูแล", value: s.alertCount, icon: "🚨", color: s.alertCount > 0 ? "border-red-500/50 bg-red-500/5" : "border-gray-700" },
+            { label: "ตอบเฉลี่ย", value: formatTime(s.avgResponseMinutes), icon: "⏱️", color: s.responseTimeLevel === "red" ? "border-red-500/50 bg-red-500/5" : s.responseTimeLevel === "yellow" ? "border-amber-500/30" : "border-emerald-500/30" },
+          ].map((c) => (
+            <div key={c.label} className={`rounded-xl border ${c.color} bg-gray-900/50 p-3`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xl">{c.icon}</span>
+                <span className="text-xl font-bold">{c.value}</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">{c.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {([
+            { key: "all", label: "ทั้งหมด" }, { key: "alert", label: `ต้องดูแล (${s.alertCount})` },
+            { key: "staff", label: "👔 พนักงาน" }, { key: "customers", label: "👥 ลูกค้า" }, { key: "rooms", label: "💬 ห้อง" },
+          ] as const).map(({ key, label }) => (
+            <button key={key} onClick={() => { setTab(key); setStaffFilter(""); }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${tab === key ? "bg-white text-black" : "bg-gray-800 text-gray-400 hover:bg-gray-700"}`}>{label}</button>
+          ))}
+          {staffKpi.length > 0 && (
+            <select value={staffFilter} onChange={(e) => { setStaffFilter(e.target.value); if (e.target.value) setTab("all"); }}
+              className="bg-gray-800 text-gray-300 text-xs rounded-lg px-3 py-1.5 border border-gray-700">
+              <option value="">-- เลือกพนักงาน --</option>
+              {staffKpi.map((st) => <option key={st.name} value={st.name}>{st.name}</option>)}
+            </select>
+          )}
+        </div>
+
+        {/* Staff KPI */}
+        {(tab === "all" || tab === "staff") && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">👔 KPI พนักงาน <span className="text-xs text-gray-500 font-normal">({filteredStaff.length} คน)</span></h2>
+            {filteredStaff.length === 0 ? (
+              <div className="text-center text-gray-500 py-6 bg-gray-900/50 rounded-xl border border-gray-800">ยังไม่มีข้อมูลพนักงาน (ชื่อขึ้นต้นด้วย SML)</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredStaff.map((st) => (
+                  <div key={st.name} className="bg-gray-900/50 border border-gray-800 rounded-xl p-4 hover:border-gray-600 transition">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-9 h-9 bg-purple-600/30 rounded-full flex items-center justify-center text-xs font-bold text-purple-300 border border-purple-500/30">
+                          {st.name.replace(/^SML\s*-?\s*/i, "").substring(0, 2)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm">{st.name}</p>
+                          <p className="text-[10px] text-gray-500">{st.messageCount} msgs &middot; {st.roomCount} ห้อง</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-[11px]">
+                      {/* Response Time */}
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-gray-400">⏱️ เวลาตอบ</span>
+                          <ResponseTimeBadge rt={st.responseTime} />
+                        </div>
+                        <ResponseTimeDetail rt={st.responseTime} />
+                      </div>
+
+                      {/* ลูกค้าพอใจ */}
+                      <div>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-gray-400">😊 ลูกค้าพอใจ</span>
+                          <Badge level={st.customerSatisfaction.level} label={SL[st.customerSatisfaction.level]} />
+                        </div>
+                        <Bar score={st.customerSatisfaction.score} level={st.customerSatisfaction.level} />
+                      </div>
+
+                      {/* พนักงานรู้สึก */}
+                      {st.sentiment && (
+                        <div>
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-gray-400">👔 ความรู้สึก</span>
+                            <Badge level={st.sentiment.level} label={SL[st.sentiment.level]} />
+                          </div>
+                          <Bar score={st.sentiment.score} level={st.sentiment.level} />
+                        </div>
+                      )}
+                    </div>
+
+                    {st.rooms.length > 0 && (
+                      <div className="mt-3 pt-2 border-t border-gray-800">
+                        <div className="flex flex-wrap gap-1">
+                          {st.rooms.map((r) => {
+                            const c = LC[r.sentiment?.level as keyof typeof LC] || LC.green;
+                            return <span key={r.sourceId} className={`text-[9px] px-1.5 py-0.5 rounded-full ${c.bg} ${c.text} border ${c.border}`} title={r.roomName}>{r.roomName.substring(0, 12)}</span>;
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Customer KPI */}
+        {(tab === "all" || tab === "customers") && customerKpi.length > 0 && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">👥 ลูกค้า <span className="text-xs text-gray-500 font-normal">({customerKpi.length} คน)</span></h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] text-gray-500 border-b border-gray-800">
+                    <th className="pb-2 pr-4">ชื่อ</th>
+                    <th className="pb-2 px-2 text-center">ข้อความ</th>
+                    <th className="pb-2 px-2 text-center">ห้อง</th>
+                    <th className="pb-2 px-2 text-center">😊 ความพอใจ</th>
+                    <th className="pb-2 px-2 text-center">🛒 โอกาสซื้อ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/50">
+                  {customerKpi.map((c) => (
+                    <tr key={c.name} className="hover:bg-gray-900/50">
+                      <td className="py-2 pr-4 font-medium text-sm">{c.name}</td>
+                      <td className="py-2 px-2 text-center text-xs text-gray-400">{c.messageCount}</td>
+                      <td className="py-2 px-2 text-center text-xs text-gray-400">{c.roomCount}</td>
+                      <td className="py-2 px-2 text-center"><Badge level={c.sentiment.level} label={SL[c.sentiment.level]} /></td>
+                      <td className="py-2 px-2 text-center"><Badge level={c.purchaseIntent.level} label={PL[c.purchaseIntent.level]} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* Rooms */}
+        {(tab === "all" || tab === "rooms" || tab === "alert") && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">{tab === "alert" ? "🚨 ห้องที่ต้องดูแล" : "💬 ภาพรวมห้อง"} <span className="text-xs text-gray-500 font-normal">({filteredRooms.length})</span></h2>
+            {filteredRooms.length === 0 ? (
+              <div className="text-center text-gray-500 py-6 bg-gray-900/50 rounded-xl border border-gray-800">{tab === "alert" ? "ไม่มีห้องที่ต้องดูแล 🎉" : "ยังไม่มีข้อมูล"}</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] text-gray-500 border-b border-gray-800">
+                      <th className="pb-2 pr-4">ห้อง</th>
+                      <th className="pb-2 px-2 text-center">📨</th>
+                      <th className="pb-2 px-2 text-center">😊 ลูกค้า</th>
+                      <th className="pb-2 px-2 text-center">👔 พนง.</th>
+                      <th className="pb-2 px-2 text-center">🛒 ซื้อ</th>
+                      <th className="pb-2 px-2 text-center">⏱️ ตอบ</th>
+                      <th className="pb-2 px-2 text-center">👥</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800/50">
+                    {filteredRooms.map((r) => (
+                      <tr key={r.sourceId} className="hover:bg-gray-900/50">
+                        <td className="py-2.5 pr-4"><p className="font-medium truncate max-w-[200px]" title={r.name}>{r.name}</p></td>
+                        <td className="py-2.5 px-2 text-center text-xs text-gray-400">{r.messageCount}</td>
+                        <td className="py-2.5 px-2 text-center">{r.customerSentiment ? <Badge level={r.customerSentiment.level} label={SL[r.customerSentiment.level]} /> : <span className="text-gray-600">-</span>}</td>
+                        <td className="py-2.5 px-2 text-center">{r.staffSentiment ? <Badge level={r.staffSentiment.level} label={SL[r.staffSentiment.level]} /> : <span className="text-gray-600">-</span>}</td>
+                        <td className="py-2.5 px-2 text-center">{r.purchaseIntent ? <Badge level={r.purchaseIntent.level} label={PL[r.purchaseIntent.level]} /> : <span className="text-gray-600">-</span>}</td>
+                        <td className="py-2.5 px-2 text-center"><ResponseTimeBadge rt={r.responseTime} /></td>
+                        <td className="py-2.5 px-2 text-center text-xs text-gray-400">{r.customerCount}+{r.staffCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Charts */}
+        {(tab === "all" || tab === "rooms") && rooms.length > 0 && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">📈 สัดส่วน</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { title: "😊 ความพอใจลูกค้า", field: "customerSentiment" as const, labels: SL },
+                { title: "🛒 โอกาสซื้อ", field: "purchaseIntent" as const, labels: PL },
+                { title: "⏱️ ความเร็วตอบ", field: "responseTime" as const, labels: RL },
+              ].map(({ title, field, labels }) => {
+                let green = 0, yellow = 0, red = 0;
+                if (field === "responseTime") {
+                  green = rooms.filter((r) => r.responseTime.level === "green" && r.responseTime.totalResponses > 0).length;
+                  yellow = rooms.filter((r) => r.responseTime.level === "yellow").length;
+                  red = rooms.filter((r) => r.responseTime.level === "red").length;
+                } else {
+                  green = rooms.filter((r) => (r[field] as ScoreData | null)?.level === "green").length;
+                  yellow = rooms.filter((r) => (r[field] as ScoreData | null)?.level === "yellow").length;
+                  red = rooms.filter((r) => (r[field] as ScoreData | null)?.level === "red").length;
+                }
+                const total = green + yellow + red || 1;
+                return (
+                  <div key={field} className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+                    <p className="text-sm text-gray-400 mb-3">{title}</p>
+                    <div className="space-y-2">
+                      {[
+                        { count: green, color: "bg-emerald-500", label: labels.green },
+                        { count: yellow, color: "bg-amber-500", label: labels.yellow },
+                        { count: red, color: "bg-red-500", label: labels.red },
+                      ].map(({ count, color, label }) => (
+                        <div key={label} className="flex items-center gap-2">
+                          <span className="text-[11px] text-gray-400 w-16">{label}</span>
+                          <div className="flex-1 bg-gray-800 rounded-full h-5 overflow-hidden">
+                            <div className={`${color} h-5 rounded-full flex items-center px-2 text-[10px] font-bold`} style={{ width: `${(count / total) * 100}%`, minWidth: count > 0 ? 24 : 0 }}>{count}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
