@@ -8,27 +8,38 @@
 
 ### Software ที่ต้องติดตั้ง
 
-| ลำดับ | Software | Download |
-|-------|----------|----------|
-| 1 | **Docker Desktop** | https://www.docker.com/products/docker-desktop/ |
+| ลำดับ | Software | คู่มือ |
+|-------|----------|--------|
+| 1 | **Docker Desktop** | [setup-docker.md](setup-docker.md) |
 | 2 | **Git** | https://git-scm.com/downloads |
 
 > หลังติดตั้ง Docker Desktop → เปิดโปรแกรม → รอจนสถานะเป็น "Running" (ไอคอนสีเขียว)
 
-### API Keys ที่ต้องขอ (ขอจากผู้ดูแลระบบ)
+### บริการที่ต้องสมัคร — คู่มือแยกแต่ละตัว
 
-| Key | ขอจากไหน | หมายเหตุ |
-|-----|----------|----------|
-| `MONGODB_URI` | ผู้ดูแลระบบ | MongoDB Atlas connection string |
-| `LINE_CHANNEL_ACCESS_TOKEN` | ผู้ดูแลระบบ หรือ LINE Developers Console | LINE Messaging API |
-| `LINE_CHANNEL_SECRET` | ผู้ดูแลระบบ หรือ LINE Developers Console | LINE Messaging API |
-| `SAMBANOVA_API_KEY` | https://cloud.sambanova.ai/ (ฟรี) | AI Provider |
-| `GROQ_API_KEY` | https://console.groq.com/ (ฟรี) | AI Provider |
-| `CEREBRAS_API_KEY` | https://cloud.cerebras.ai/ (ฟรี) | AI Provider |
-| `OPENROUTER_API_KEY` | https://openrouter.ai/ (ฟรี) | AI Provider |
-| `GOOGLE_API_KEY` | https://aistudio.google.com/ (ฟรี) | Gemini Vision |
+| บริการ | คู่มือ | หมายเหตุ |
+|--------|--------|----------|
+| Docker Desktop | [setup-docker.md](setup-docker.md) | รัน containers ทั้งระบบ |
+| MongoDB Atlas | [setup-mongodb.md](setup-mongodb.md) | ฐานข้อมูล (ฟรี M0) |
+| LINE Messaging API | [setup-line.md](setup-line.md) | เชื่อม LINE OA |
+| AI Providers | [setup-ai-providers.md](setup-ai-providers.md) | SambaNova, Groq, Cerebras, OpenRouter, Google (ฟรีทั้งหมด) |
+| Cloudflare Tunnel | [setup-cloudflare-tunnel.md](setup-cloudflare-tunnel.md) | เปิดให้เข้าจาก Internet (ฟรี) |
+| MCP ERP | ขอจากผู้ดูแลระบบ | เชื่อม ERP (ถ้าใช้) |
+
+### API Keys ที่ต้องเตรียม
+
+| Key | ได้จาก | หมายเหตุ |
+|-----|--------|----------|
+| `MONGODB_URI` | [setup-mongodb.md](setup-mongodb.md) | MongoDB connection string |
+| `LINE_CHANNEL_ACCESS_TOKEN` | [setup-line.md](setup-line.md) | LINE Messaging API |
+| `LINE_CHANNEL_SECRET` | [setup-line.md](setup-line.md) | LINE Messaging API |
+| `SAMBANOVA_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | AI Provider (ฟรี) |
+| `GROQ_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | AI Provider (ฟรี) |
+| `CEREBRAS_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | AI Provider (ฟรี) |
+| `OPENROUTER_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | AI Provider (ฟรี) |
+| `GOOGLE_API_KEY` | [setup-ai-providers.md](setup-ai-providers.md) | Gemini Vision (ฟรี) |
 | `MCP_ERP_API_KEY` | ผู้ดูแลระบบ | เชื่อม ERP (ถ้าใช้) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | ผู้ดูแลระบบ | Cloudflare Tunnel |
+| `CLOUDFLARE_TUNNEL_TOKEN` | [setup-cloudflare-tunnel.md](setup-cloudflare-tunnel.md) | Cloudflare Tunnel |
 | `CONFIG_PASSWORD` | ตั้งเอง | รหัสเข้าหน้า Config บน Dashboard |
 
 ---
