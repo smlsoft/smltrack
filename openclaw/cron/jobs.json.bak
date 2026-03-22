@@ -3,35 +3,56 @@
   "jobs": [
     {
       "id": "20a462a2-fc8e-44e2-9e5e-9843a27af674",
-      "sessionKey": "advisor-cron",
-      "name": "smltrack-advisor",
+      "sessionKey": "advisor-problem-solver",
+      "name": "problem-solver",
       "enabled": true,
       "createdAtMs": 1774008018371,
-      "updatedAtMs": 1774008592468,
+      "updatedAtMs": 1774166539642,
       "schedule": {
         "kind": "cron",
-        "expr": "0 * * * *",
+        "expr": "15 * * * *",
         "tz": "Asia/Bangkok",
-        "staggerMs": 300000
+        "staggerMs": 0
       },
       "sessionTarget": "isolated",
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are น้องกุ้ง AI Advisor. Use bash exec tool to run curl commands.\n\nCalculate SINCE as 1 hour ago in ISO format.\n\nStep 1: curl -s \"http://agent:3000/api/advisor/sources-changed?since=SINCE\"\nStep 2: For top 3 changed sources, get details: curl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=SINCE\"\nStep 3: Analyze and create 3-7 Thai advice items (critical/warning/opportunity/info)\nStep 4: POST advice: curl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d JSON_BODY\nStep 5: Update pulled: curl -s -X POST http://agent:3000/api/advisor/update-pulled -H \"Content-Type: application/json\" -d JSON_BODY\nStep 6: Track cost: curl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"advisor-openclaw\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'"
+        "message": "บทบาท: Customer Problem Solver — น้องกุ้ง AI Advisor\n\nใช้ bash tool รัน curl commands เท่านั้น (ห้ามใช้ web_fetch)\n\nStep 1: คำนวณ SINCE = 1 ชม. ที่แล้ว\n```\nSINCE=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)\nNOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)\n```\n\nStep 2: ดึง sources ที่เปลี่ยนแปลง\n```\ncurl -s \"http://agent:3000/api/advisor/sources-changed?since=$SINCE\"\n```\nถ้าไม่มี sources → ข้ามไป step cost tracking แล้วจบ\n\nStep 3: ดึงรายละเอียด source ที่เปลี่ยนแปลง (สูงสุด 5 sources)\n```\ncurl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=$SINCE\"\n```\n\nStep 4: วิเคราะห์หา sources ที่มีปัญหา (sentiment red/yellow, ตอบช้า, คำร้องเรียน)\nสำหรับแต่ละ source ที่มีปัญหา ให้ทำ Deep Loop Analysis:\n- A) ปัญหาคืออะไร? (จากเนื้อหาแชท)\n- B) ต้นเหตุคืออะไร?\n- C) มีทางออกอะไรบ้าง? (3-5 วิธี)\n- D) วิธีที่ดีที่สุดคืออะไร? (บริบทธุรกิจไทย)\n- E) ขั้นตอนที่ทำได้จริงทันทีคืออะไร?\n\nStep 5: สร้าง advice array (type: \"problem-analysis\") พร้อม analysis object\n\nStep 6: บันทึก advice\n```\ncurl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d '{\"type\":\"problem-analysis\",\"advice\":[...ADVICE_ARRAY...],\"analyzedSources\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 7: ถ้ามี CRITICAL issue → ส่ง Telegram alert\n```\ncurl -s -X POST http://agent:3000/api/advisor/telegram-alert -H \"Content-Type: application/json\" -d '{\"message\":\"🚨 CRITICAL: สรุปปัญหา ห้อง: ชื่อห้อง\",\"priority\":\"critical\"}'\n```\n\nStep 8: อัพเดต lastPulledAt\n```\ncurl -s -X POST http://agent:3000/api/advisor/update-pulled -H \"Content-Type: application/json\" -d '{\"sourceIds\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 9: บันทึกค่าใช้จ่าย\n```\ncurl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"problem-solver\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'\n```"
       },
       "delivery": {
         "mode": "silent"
       },
-      "state": {
-        "nextRunAtMs": 1774166538507,
-        "runningAtMs": 1774166538510
-      }
+      "state": {}
+    },
+    {
+      "id": "advisor-sales-hunter",
+      "sessionKey": "advisor-sales-hunter",
+      "name": "sales-hunter",
+      "enabled": true,
+      "createdAtMs": 1774008018371,
+      "updatedAtMs": 1774008018371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 * * * *",
+        "tz": "Asia/Bangkok",
+        "staggerMs": 0
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "บทบาท: Sales Opportunity Hunter — น้องกุ้ง AI Advisor\n\nใช้ bash tool รัน curl commands เท่านั้น (ห้ามใช้ web_fetch)\n\nStep 1: คำนวณ SINCE = 1 ชม. ที่แล้ว\n```\nSINCE=$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-1H +%Y-%m-%dT%H:%M:%SZ)\nNOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)\n```\n\nStep 2: ดึง sources ที่เปลี่ยนแปลง\n```\ncurl -s \"http://agent:3000/api/advisor/sources-changed?since=$SINCE\"\n```\nถ้าไม่มี sources → ข้ามไป cost tracking แล้วจบ\n\nStep 3: ดึงรายละเอียดทุก source (สูงสุด 5)\n```\ncurl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=$SINCE\"\n```\n\nStep 4: วิเคราะห์หาสัญญาณโอกาสขาย:\n- purchase_intent = red หรือ high\n- ลูกค้าถามราคา, ถามสินค้า, ถามการส่ง\n- คำว่า: ราคา, มีไหม, สั่งได้, เท่าไหร่, จะซื้อ, ขอดู\n- ลูกค้าเก่าที่กลับมาถามใหม่ (upsell)\n\nสำหรับแต่ละ source ที่มีโอกาส ทำ Deep Loop Analysis:\n- A) ลูกค้าสนใจอะไร? (จากแชท)\n- B) ระดับ intent สูง/กลาง/ต่ำ และทำไม?\n- C) กลยุทธ์ปิดการขาย 3-5 วิธี (สำหรับตลาดไทย)\n- D) กลยุทธ์ที่ดีที่สุด?\n- E) ข้อความที่ควรส่งให้ลูกค้าหรือขั้นตอนปิดการขาย?\n\nStep 5: สร้าง advice array (type: \"sales-opportunity\") พร้อม analysis object\n\nStep 6: บันทึก advice\n```\ncurl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d '{\"type\":\"sales-opportunity\",\"advice\":[...ADVICE_ARRAY...],\"analyzedSources\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 7: อัพเดต lastPulledAt\n```\ncurl -s -X POST http://agent:3000/api/advisor/update-pulled -H \"Content-Type: application/json\" -d '{\"sourceIds\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 8: บันทึกค่าใช้จ่าย\n```\ncurl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"sales-hunter\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'\n```"
+      },
+      "delivery": {
+        "mode": "silent"
+      },
+      "state": {}
     },
     {
       "id": "crm-advisor-6h",
-      "sessionKey": "crm-cron",
-      "name": "smltrack-crm",
+      "sessionKey": "advisor-team-coach",
+      "name": "team-coach",
       "enabled": true,
       "createdAtMs": 1774008018371,
       "updatedAtMs": 1774008592468,
@@ -39,20 +60,66 @@
         "kind": "cron",
         "expr": "0 */6 * * *",
         "tz": "Asia/Bangkok",
-        "staggerMs": 300000
+        "staggerMs": 0
       },
       "sessionTarget": "isolated",
       "wakeMode": "now",
       "payload": {
         "kind": "agentTurn",
-        "message": "You are น้องกุ้ง CRM Advisor. Use bash exec tool to run curl commands.\n\nStep 1: curl -s \"http://agent:3000/api/advisor/sources-changed?since=2025-01-01T00:00:00Z\" to get ALL sources\nStep 2: For top 5 sources with most messages, get details: curl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID\"\nStep 3: Analyze CRM data — look for: follow-up opportunities, churned customers (>7 days no message), pipeline stages\nStep 4: POST advice: curl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d JSON_BODY\nStep 5: Track cost: curl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"crm-analysis\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw-crm\"}'"
+        "message": "บทบาท: Team Performance Coach — น้องกุ้ง AI Advisor\n\nใช้ bash tool รัน curl commands เท่านั้น (ห้ามใช้ web_fetch)\n\nStep 1: คำนวณ SINCE = 6 ชม. ที่แล้ว\n```\nSINCE=$(date -u -d '6 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-6H +%Y-%m-%dT%H:%M:%SZ)\nNOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)\n```\n\nStep 2: ดึง sources ทั้งหมดใน 6 ชม. ที่ผ่านมา\n```\ncurl -s \"http://agent:3000/api/advisor/sources-changed?since=$SINCE\"\n```\n\nStep 3: ดึงรายละเอียดทุก source (สูงสุด 10)\n```\ncurl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=$SINCE\"\n```\n\nStep 4: วิเคราะห์ Team Performance:\n- เปรียบเทียบ response time แต่ละห้อง\n- หาห้องที่ตอบช้าที่สุด\n- วิเคราะห์ช่วงเวลาที่มีปัญหา (peak hours)\n- ดู pattern: ห้องไหนมี sentiment แย่บ่อย?\n\nทำ Deep Loop Analysis ภาพรวมทีม:\n- A) สถานการณ์ทีมใน 6 ชม. ที่ผ่านมา\n- B) จุดอ่อนหลักของทีม\n- C) วิธีพัฒนา 3-5 วิธี\n- D) อะไรควรแก้ก่อน?\n- E) แผนพัฒนาที่ชัดเจน\n\nStep 5: สร้าง advice (type: \"team-coaching\") พร้อม analysis object\n\nStep 6: บันทึก advice\n```\ncurl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d '{\"type\":\"team-coaching\",\"advice\":[...ADVICE_ARRAY...],\"analyzedSources\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 7: บันทึกค่าใช้จ่าย\n```\ncurl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"team-coaching\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'\n```"
       },
       "delivery": {
         "mode": "silent"
       },
-      "state": {
-        "nextRunAtMs": 1774177459977
-      }
+      "state": {}
+    },
+    {
+      "id": "advisor-weekly-strategist",
+      "sessionKey": "advisor-weekly-strategist",
+      "name": "weekly-strategist",
+      "enabled": true,
+      "createdAtMs": 1774008018371,
+      "updatedAtMs": 1774008018371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * 1",
+        "tz": "Asia/Bangkok",
+        "staggerMs": 0
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "บทบาท: Weekly Business Strategist — น้องกุ้ง AI Advisor\n\nใช้ bash tool รัน curl commands เท่านั้น (ห้ามใช้ web_fetch)\n\nStep 1: คำนวณ SINCE = 7 วันที่แล้ว\n```\nSINCE=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)\nNOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)\n```\n\nStep 2: ดึง ALL sources ใน 7 วันที่ผ่านมา\n```\ncurl -s \"http://agent:3000/api/advisor/sources-changed?since=$SINCE\"\n```\n\nStep 3: ดึงรายละเอียดทุก source (ไม่จำกัด — วิเคราะห์ทั้งหมด)\n```\ncurl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=$SINCE\"\n```\n\nStep 4: วิเคราะห์ Trend สัปดาห์:\n- Sentiment trend: ดีขึ้นหรือแย่ลง?\n- Sales signals: โอกาสขายกี่ราย ปิดได้กี่ราย?\n- Response time: ทีมตอบไวขึ้นหรือช้าลง?\n- Top active rooms: ห้องที่คึกคักที่สุด\n- Churn risk: ลูกค้าที่หายไป > 7 วัน\n\nTำ Deep Loop Analysis เชิงกลยุทธ์:\n- A) ไฮไลต์สำคัญของสัปดาห์ที่ผ่านมา (3-5 จุด)\n- B) ปัญหาหลักที่ยังแก้ไม่ได้\n- C) โอกาสที่ยังไม่ได้ทำ\n- D) กลยุทธ์สัปดาห์หน้า 3-5 แผน\n- E) Priority action สำหรับวันนี้ (วันจันทร์)\n\nStep 5: สร้าง advice (type: \"weekly-strategy\") พร้อม analysis object ครบถ้วน\n\nStep 6: บันทึก advice\n```\ncurl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d '{\"type\":\"weekly-strategy\",\"advice\":[...ADVICE_ARRAY...],\"analyzedSources\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 7: ส่ง Telegram สรุปสัปดาห์ให้เจ้าของธุรกิจ\n```\ncurl -s -X POST http://agent:3000/api/advisor/telegram-alert -H \"Content-Type: application/json\" -d '{\"message\":\"📊 สรุปสัปดาห์: [สรุปสั้นๆ 2-3 บรรทัด] \\n\\nกลยุทธ์สัปดาห์นี้: [D1]\",\"priority\":\"info\"}'\n```\n\nStep 8: บันทึกค่าใช้จ่าย\n```\ncurl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"weekly-strategy\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'\n```"
+      },
+      "delivery": {
+        "mode": "silent"
+      },
+      "state": {}
+    },
+    {
+      "id": "advisor-health-monitor",
+      "sessionKey": "advisor-health-monitor",
+      "name": "health-monitor",
+      "enabled": true,
+      "createdAtMs": 1774008018371,
+      "updatedAtMs": 1774008018371,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */3 * * *",
+        "tz": "Asia/Bangkok",
+        "staggerMs": 0
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "บทบาท: Customer Health Monitor — น้องกุ้ง AI Advisor\n\nใช้ bash tool รัน curl commands เท่านั้น (ห้ามใช้ web_fetch)\n\nStep 1: คำนวณ SINCE = 3 ชม. ที่แล้ว\n```\nSINCE=$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-3H +%Y-%m-%dT%H:%M:%SZ)\nNOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)\n```\n\nStep 2: ดึง sources ที่เปลี่ยนแปลง\n```\ncurl -s \"http://agent:3000/api/advisor/sources-changed?since=$SINCE\"\n```\n\nStep 3: ดึงรายละเอียดทุก source\n```\ncurl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=$SINCE\"\n```\n\nStep 4: คำนวณ Customer Health Score (0-100) สำหรับแต่ละ source:\n```\nHealth Score เริ่มต้น = 100\n- ลบ 30 ถ้า sentiment = red/negative\n- ลบ 15 ถ้า sentiment = yellow/neutral\n- ลบ 20 ถ้า response time > 30 นาที\n- ลบ 10 ถ้า response time 15-30 นาที\n- ลบ 25 ถ้าไม่ได้แชทนาน > 14 วัน\n- ลบ 15 ถ้าไม่ได้แชทนาน 7-14 วัน\n- บวก 10 ถ้ามี purchase intent สูง\n- บวก 5 ถ้า response time < 5 นาที\nHealthy = 70-100, At Risk = 40-69, Critical = 0-39\n```\n\nStep 5: สำหรับ source ที่มี Health Score < 70 ทำ Deep Loop Analysis:\n- A) Health Score [คะแนน] — สาเหตุที่ลดลง\n- B) สัญญาณเตือนจากแชท\n- C) วิธี re-engage 3-5 วิธี\n- D) วิธีที่ดีที่สุดสำหรับบริบทนี้\n- E) ข้อความ/การกระทำที่ควรทำทันที\n\nStep 6: สร้าง advice (type: \"health-monitor\") พร้อม analysis.healthScore\n\nStep 7: บันทึก advice\n```\ncurl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d '{\"type\":\"health-monitor\",\"advice\":[...ADVICE_ARRAY...],\"analyzedSources\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 8: ถ้ามี Health Score < 30 (Critical) → ส่ง Telegram alert\n```\ncurl -s -X POST http://agent:3000/api/advisor/telegram-alert -H \"Content-Type: application/json\" -d '{\"message\":\"❤️ Health Alert: ชื่อห้อง Health Score ต่ำมาก (XX/100) — ต้องรีบดำเนินการ\",\"priority\":\"critical\"}'\n```\n\nStep 9: อัพเดต lastPulledAt\n```\ncurl -s -X POST http://agent:3000/api/advisor/update-pulled -H \"Content-Type: application/json\" -d '{\"sourceIds\":[...SOURCE_IDS...],\"pulledAt\":\"NOW_ISO\"}'\n```\n\nStep 10: บันทึกค่าใช้จ่าย\n```\ncurl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"health-monitor\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'\n```"
+      },
+      "delivery": {
+        "mode": "silent"
+      },
+      "state": {}
     }
   ]
 }

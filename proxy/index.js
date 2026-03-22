@@ -2211,7 +2211,7 @@ app.post("/api/advisor/advice", express.json(), async (req, res) => {
   const database = await getDB();
   if (!database) return res.status(500).json({ error: "DB not ready" });
 
-  const { advice, analyzedSources, pulledAt } = req.body;
+  const { advice, analyzedSources, pulledAt, type } = req.body;
   if (!advice || !Array.isArray(advice)) {
     return res.status(400).json({ error: "advice array required" });
   }
@@ -2219,26 +2219,96 @@ app.post("/api/advisor/advice", express.json(), async (req, res) => {
   try {
     // Normalize: รองรับ format ที่ AI อาจส่งมาต่างกัน
     const normalized = advice.map((a) => ({
-      priority: a.priority || a.type || "info",
+      priority: a.priority || "info",
       icon: a.icon || a.emoji || "📋",
       title: a.title || a.content || a.summary || "คำแนะนำ",
       detail: a.detail || a.description || a.content || "",
       action: a.action || a.recommendation || "",
+      analysis: a.analysis || null,
       relatedRoom: a.relatedRoom || a.room || a.sourceId || null,
       sourceId: a.sourceId || null,
     }));
 
+    // Add type field — problem-analysis, sales-opportunity, team-coaching, weekly-strategy, health-monitor
+    const adviceType = type || (advice[0] && advice[0].type) || "general";
+
     await database.collection("ai_advice").insertOne({
+      type: adviceType,
       advice: normalized,
       analyzedSources: analyzedSources || [],
       source: "openclaw",
       createdAt: new Date(pulledAt || Date.now()),
     });
 
-    console.log(`[Advisor] ✅ รับคำแนะนำ ${advice.length} ข้อ จาก ${(analyzedSources || []).length} sources`);
-    res.json({ ok: true, count: advice.length });
+    console.log(`[Advisor] ✅ รับคำแนะนำ ${advice.length} ข้อ type=${adviceType} จาก ${(analyzedSources || []).length} sources`);
+    res.json({ ok: true, count: advice.length, type: adviceType });
   } catch (e) {
     console.error("[Advisor API] advice save error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ดึงคำแนะนำกรองตาม type
+app.get("/api/advisor/advice-by-type", async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.json([]);
+
+  const { type, limit: limitStr } = req.query;
+  const limit = parseInt(limitStr) || 10;
+
+  try {
+    const filter = type ? { type } : {};
+    const docs = await database.collection("ai_advice")
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+    res.json(docs);
+  } catch (e) {
+    console.error("[Advisor API] advice-by-type error:", e.message);
+    res.json([]);
+  }
+});
+
+// ส่ง Telegram alert สำหรับ critical findings จาก OpenClaw
+app.post("/api/advisor/telegram-alert", express.json(), async (req, res) => {
+  const database = await getDB();
+  if (!database) return res.status(500).json({ error: "DB not ready" });
+
+  const { message, priority } = req.body;
+  if (!message) return res.status(400).json({ error: "message required" });
+
+  try {
+    // ดึง accounts ทั้งหมดที่มี telegramChatId
+    const accounts = await database.collection("accounts")
+      .find({ telegramChatId: { $exists: true, $ne: null } })
+      .toArray();
+
+    if (accounts.length === 0) {
+      console.log("[Telegram Alert] ไม่มี accounts ที่เชื่อมต่อ Telegram");
+      return res.json({ ok: true, sent: 0, message: "no telegram accounts" });
+    }
+
+    const priorityPrefix = priority === "critical" ? "🚨 วิกฤต" :
+      priority === "warning" ? "⚠️ เตือน" :
+      priority === "opportunity" ? "💰 โอกาส" : "📊 ข้อมูล";
+
+    const fullMessage = `${priorityPrefix} — น้องกุ้ง AI Advisor\n\n${message}`;
+
+    let sent = 0;
+    for (const account of accounts) {
+      try {
+        await sendTelegram(account.telegramChatId, fullMessage);
+        sent++;
+      } catch (e) {
+        console.error(`[Telegram Alert] ส่งไม่ได้ chatId=${account.telegramChatId}:`, e.message);
+      }
+    }
+
+    console.log(`[Telegram Alert] ส่ง ${sent}/${accounts.length} accounts — priority=${priority}`);
+    res.json({ ok: true, sent, total: accounts.length });
+  } catch (e) {
+    console.error("[Telegram Alert] error:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
