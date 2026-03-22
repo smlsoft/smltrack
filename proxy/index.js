@@ -2481,6 +2481,96 @@ app.get("/api/costs", async (req, res) => {
   }
 });
 
+// === Inbox: Send Message (LINE Push / Meta) ===
+
+// ส่งข้อความหา LINE user/group แบบ proactive (push message)
+async function sendLinePush(to, text, imageUrl) {
+  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!token) {
+    console.warn("[Inbox] LINE_CHANNEL_ACCESS_TOKEN not set — cannot push");
+    return false;
+  }
+  const messages = [];
+  if (text) messages.push({ type: "text", text });
+  if (imageUrl) {
+    messages.push({
+      type: "image",
+      originalContentUrl: imageUrl,
+      previewImageUrl: imageUrl,
+    });
+  }
+  if (messages.length === 0) return false;
+  try {
+    const res = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ to, messages }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error("[Inbox] LINE push error:", res.status, errText);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("[Inbox] sendLinePush error:", e.message);
+    return false;
+  }
+}
+
+// POST /api/inbox/send — ส่งข้อความจาก Dashboard ไปหาลูกค้า
+app.post("/api/inbox/send", express.json(), async (req, res) => {
+  const { sourceId, platform, text, imageUrl, staffName } = req.body;
+
+  if (!sourceId || !platform) {
+    return res.status(400).json({ error: "sourceId and platform required" });
+  }
+  if (!text && !imageUrl) {
+    return res.status(400).json({ error: "text or imageUrl required" });
+  }
+
+  const senderName = staffName || "พนักงาน";
+  let sent = false;
+
+  try {
+    if (platform === "line") {
+      sent = await sendLinePush(sourceId, text, imageUrl);
+    } else if (platform === "facebook" || platform === "instagram") {
+      // strip prefix for Meta recipient id
+      const recipientId = sourceId.replace(/^(fb_|ig_)/, "");
+      sent = await sendMetaMessage(recipientId, text);
+    } else {
+      return res.status(400).json({ error: `platform '${platform}' not supported` });
+    }
+
+    if (!sent) {
+      return res.status(502).json({ error: "ส่งข้อความไม่สำเร็จ — ตรวจสอบ token และการตั้งค่า" });
+    }
+
+    // บันทึกข้อความที่พนักงานส่งลง MongoDB
+    await saveMsg(
+      sourceId,
+      {
+        role: "assistant",
+        userName: senderName,
+        content: text || "",
+        messageType: imageUrl ? "image" : "text",
+        imageUrl: imageUrl || null,
+      },
+      platform
+    );
+
+    console.log(`[Inbox] ✅ ส่งสำเร็จ → ${platform}:${sourceId} โดย ${senderName}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("[Inbox] /api/inbox/send error:", e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // === Telegram Bot (น้องกุ้ง) ===
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 
