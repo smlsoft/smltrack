@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.3.13",
+    "lastTouchedAt": "2026-03-22T07:23:42.861Z"
+  },
+  "agents": {
+    "defaults": {
+      "model": "openrouter/qwen/qwen3-235b-a22b",
+      "compaction": {
+        "mode": "safeguard"
+      }
+    }
+  },
+  "tools": {
+    "web": {
+      "fetch": {
+        "enabled": true
+      }
+    },
+    "exec": {
+      "host": "gateway",
+      "security": "full",
+      "ask": "off"
+    }
+  },
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
+  },
+  "cron": {
+    "enabled": true,
+    "maxConcurrentRuns": 1,
+    "sessionRetention": "48h"
+  },
+  "channels": {
+    "line": {
+      "enabled": false
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "mode": "local",
+    "bind": "lan",
+    "controlUi": {
+      "enabled": true,
+      "allowedOrigins": [
+        "http://localhost:18789",
+        "http://127.0.0.1:18789"
+      ]
+    },
+    "auth": {
+      "mode": "token",
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
+    }
+  },
+  "skills": {
+    "entries": {
+      "smltrack-advisor": {
+        "enabled": true
+      }
+    }
+  }
+}

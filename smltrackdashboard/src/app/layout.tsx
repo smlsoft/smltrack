@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SessionProviderWrapper from "@/components/SessionProviderWrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SML ChatFlow — CRM from Chat",
-  description: "ระบบ CRM อัจฉริยะ วิเคราะห์สนทนา LINE OA อัตโนมัติ",
+  title: "SML Mini CRM — AI Chat Intelligence",
+  description: "ระบบ Mini CRM อัจฉริยะ วิเคราะห์สนทนา LINE / Facebook / Instagram อัตโนมัติ",
 };
 
 export default function RootLayout({
@@ -28,7 +29,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <SessionProviderWrapper>
+          <ThemeProvider>{children}</ThemeProvider>
+        </SessionProviderWrapper>
       </body>
     </html>
   );

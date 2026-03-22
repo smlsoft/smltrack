@@ -47,6 +47,7 @@ export async function GET() {
           id: sourceId,
           name: meta?.groupName || sourceId,
           sourceType: meta?.sourceType || "unknown",
+          platform: meta?.platform || "line",
           messageCount: count,
           lastMessage: lastMsg?.content?.substring(0, 50) || "",
           lastActivity: lastMsg?.createdAt || null,

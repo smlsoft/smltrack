@@ -19,6 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import IPhoneChat from "@/components/IPhoneChat";
 import { ThemeToggle } from "@/components/ThemeProvider";
+import UserMenu from "@/components/UserMenu";
 
 interface Message {
   _id: string;
@@ -50,6 +51,7 @@ interface Group {
   overallSentiment?: ScoreData | null;
   purchaseIntent?: ScoreData | null;
   analysisLogsCount?: number;
+  platform?: string;
 }
 
 type FilterKey = "sentiment-green" | "sentiment-yellow" | "sentiment-red" | "purchase-green" | "purchase-yellow" | "purchase-red";
@@ -72,6 +74,7 @@ export default function Home() {
   const [autoSort, setAutoSort] = useState(true);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [filters, setFilters] = useState<Set<FilterKey>>(new Set());
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [showAlerts, setShowAlerts] = useState(true);
 
@@ -134,6 +137,12 @@ export default function Home() {
   // Filter groups
   // Filter: AND logic — ต้องตรงทุกตัวที่เลือก
   const filteredGroups = groups.filter((g) => {
+    // Platform filter
+    if (platformFilter !== "all") {
+      const gPlatform = g.platform || "line";
+      if (gPlatform !== platformFilter) return false;
+    }
+    // Sentiment / purchase filter
     if (filters.size === 0) return true;
     for (const f of filters) {
       if (f.startsWith("sentiment-") && g.sentiment?.level !== f.replace("sentiment-", "")) return false;
@@ -186,8 +195,8 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-cyan-500 rounded-xl flex items-center justify-center text-lg shadow-lg shadow-indigo-500/20">💬</div>
           <div>
-            <h1 className="text-lg font-bold">SML ChatFlow</h1>
-            <p className="text-xs theme-text-muted">CRM from Chat — ไหลลื่นจากแชทสู่ CRM</p>
+            <h1 className="text-lg font-bold">SML Mini CRM</h1>
+            <p className="text-xs theme-text-muted">AI Chat Intelligence — LINE · Facebook · Instagram</p>
           </div>
           <div className="ml-auto flex items-center gap-3 flex-wrap">
             {/* Filters — Traffic Light with Labels */}
@@ -264,6 +273,7 @@ export default function Home() {
             <Link href="/costs" className="px-3 py-1.5 bg-emerald-900/50 hover:bg-emerald-800/50 border border-emerald-700/50 rounded-lg text-xs text-emerald-300 hover:text-white transition">💰 AI Cost</Link>
             <Link href="/config" className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-white transition">⚙️</Link>
             <ThemeToggle />
+            <UserMenu />
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               <span className="text-xs text-green-400">{groups.length} groups &middot; Live</span>
@@ -271,6 +281,33 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Platform Filter Tabs */}
+      <div className="border-b theme-border px-4 py-2 flex items-center gap-2" style={{ background: "var(--bg-primary)" }}>
+        <span className="text-[11px] text-gray-500 mr-1 shrink-0">Platform:</span>
+        {([
+          { value: "all", label: "ทั้งหมด", badgeClass: "bg-gray-700 text-gray-200 hover:bg-gray-600", activeClass: "bg-white text-black" },
+          { value: "line", label: "LINE", badgeClass: "bg-green-900/40 text-green-400 hover:bg-green-800/50 border border-green-800/50", activeClass: "bg-green-600 text-white border border-green-500" },
+          { value: "facebook", label: "Facebook", badgeClass: "bg-blue-900/40 text-blue-400 hover:bg-blue-800/50 border border-blue-800/50", activeClass: "bg-blue-600 text-white border border-blue-500" },
+          { value: "instagram", label: "Instagram", badgeClass: "bg-pink-900/40 text-pink-400 hover:bg-pink-800/50 border border-pink-800/50", activeClass: "bg-gradient-to-r from-purple-600 to-pink-600 text-white border border-pink-500" },
+        ]).map(({ value, label, badgeClass, activeClass }) => {
+          const isActive = platformFilter === value;
+          // Count per platform
+          const count = value === "all"
+            ? groups.length
+            : groups.filter((g) => (g.platform || "line") === value).length;
+          return (
+            <button
+              key={value}
+              onClick={() => setPlatformFilter(value)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${isActive ? activeClass : badgeClass}`}
+            >
+              {label}
+              <span className={`text-[10px] px-1 rounded-full ${isActive ? "bg-white/20" : "bg-gray-700/60"}`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* iPhone Grid */}
       <main className="p-4">

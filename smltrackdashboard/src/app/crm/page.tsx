@@ -89,7 +89,7 @@ export default function CrmPage() {
             <Link href="/" className="theme-text-muted hover:theme-text text-xl">&larr;</Link>
             <div>
               <h1 className="text-xl font-bold">👥 CRM</h1>
-              <p className="text-xs theme-text-muted">SML ChatFlow &middot; ลูกค้าเพิ่มอัตโนมัติ &middot; {customers.length} ราย</p>
+              <p className="text-xs theme-text-muted">SML Mini CRM &middot; ลูกค้าเพิ่มอัตโนมัติ &middot; {customers.length} ราย</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

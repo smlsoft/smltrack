@@ -1,7 +1,7 @@
 /**
- * SMLTrack AI Agent — All-in-One
- * LINE webhook → เก็บ MongoDB → RAG → AI (SambaNova/Groq/Gemini) → ตอบ LINE
- * All-in-One: LINE + RAG + AI Agent + MCP + Analytics
+ * SML Mini CRM — AI Agent
+ * LINE/Facebook/Instagram webhook → เก็บ MongoDB → RAG → AI → ตอบ
+ * All-in-One: Multi-channel + RAG + AI Agent + MCP + Analytics
  */
 const express = require("express");
 const http = require("http");
@@ -318,11 +318,11 @@ async function getEmbedding(text) {
 }
 
 // === Save message to MongoDB (collection เดียว + embedding non-blocking) ===
-async function saveMsg(sourceId, msg) {
+async function saveMsg(sourceId, msg, platform = "line") {
   const database = await getDB();
   if (!database) return;
   try {
-    const doc = { ...msg, sourceId, createdAt: new Date() };
+    const doc = { ...msg, sourceId, platform, createdAt: new Date() };
     const result = await database.collection(MESSAGES_COLL).insertOne(doc);
 
     // Embed แบบ non-blocking
@@ -446,7 +446,7 @@ async function getGroupName(groupId) {
 }
 
 // === Save/update group metadata ===
-async function saveGroupMeta(sourceId, groupName, source) {
+async function saveGroupMeta(sourceId, groupName, source, platform = "line") {
   const database = await getDB();
   if (!database) return;
   try {
@@ -457,6 +457,7 @@ async function saveGroupMeta(sourceId, groupName, source) {
           sourceId,
           groupName: groupName || sourceId,
           sourceType: source.type,
+          platform,
           updatedAt: new Date(),
         },
         $setOnInsert: { createdAt: new Date() },
@@ -482,7 +483,7 @@ async function processEvent(event) {
 
   // Save group metadata — ใช้ชื่อ group สำหรับ group, ชื่อ user สำหรับ DM
   const displayName = groupName || (source.type === "user" ? userName : null);
-  saveGroupMeta(sourceId, displayName, source).catch(() => {});
+  saveGroupMeta(sourceId, displayName, source, "line").catch(() => {});
 
   // Handle image → เก็บเป็น base64 ใน MongoDB + Vision AI วิเคราะห์รูป
   let imageData = null;
@@ -516,7 +517,7 @@ async function processEvent(event) {
     groupId: source.groupId || source.roomId,
     messageId: msg.id,
     timestamp: event.timestamp,
-  });
+  }, "line");
 
   console.log(
     `[MSG] ${userName}: ${msgContent.substring(0, 60)}${imageData ? " +img" : ""}`
@@ -1529,7 +1530,171 @@ async function analyzeImage(imageBuffer) {
   return null;
 }
 
-// === Webhook endpoint ===
+// === Meta (Facebook/Instagram) helpers ===
+
+// Verify X-Hub-Signature-256
+function verifyMetaSignature(rawBody, signature) {
+  if (!signature) return false;
+  const hmac = require("crypto").createHmac("sha256", process.env.FB_APP_SECRET || "")
+  const digest = "sha256=" + hmac.update(rawBody).digest("hex")
+  return digest === signature
+}
+
+// Cache โปรไฟล์ผู้ใช้ Meta (ไม่เรียก Graph API ซ้ำ)
+const metaProfileCache = {} // userId → { name, profilePic, _ts }
+const META_PROFILE_TTL = 3600000 // 1 ชม.
+
+async function getMetaUserProfile(userId) {
+  const cached = metaProfileCache[userId]
+  if (cached && Date.now() - cached._ts < META_PROFILE_TTL) return cached
+
+  const token = process.env.FB_PAGE_ACCESS_TOKEN
+  if (!token) return { name: userId, profilePic: null }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v19.0/${userId}?fields=name,profile_pic&access_token=${token}`,
+      { signal: AbortSignal.timeout(5000) }
+    )
+    if (!res.ok) return { name: userId, profilePic: null }
+    const data = await res.json()
+    const profile = { name: data.name || userId, profilePic: data.profile_pic || null, _ts: Date.now() }
+    metaProfileCache[userId] = profile
+    return profile
+  } catch (e) {
+    return { name: userId, profilePic: null }
+  }
+}
+
+// ส่งข้อความกลับ Meta (สำรองไว้ — ระบบนี้ listen-only, ยังไม่เรียก)
+async function sendMetaMessage(recipientId, text) {
+  const token = process.env.FB_PAGE_ACCESS_TOKEN
+  if (!token) return false
+  try {
+    const res = await fetch("https://graph.facebook.com/v19.0/me/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: { text },
+      }),
+    })
+    return res.ok
+  } catch (e) {
+    console.error("[Meta] sendMetaMessage error:", e.message)
+    return false
+  }
+}
+
+// === Meta Webhook: Verification (GET) ===
+app.get("/webhook/meta", (req, res) => {
+  const mode = req.query["hub.mode"]
+  const token = req.query["hub.verify_token"]
+  const challenge = req.query["hub.challenge"]
+
+  if (mode === "subscribe" && token === (process.env.FB_VERIFY_TOKEN || "")) {
+    console.log("[Meta] Webhook verified ✅")
+    return res.status(200).send(challenge)
+  }
+  console.log("[Meta] Webhook verification failed ❌")
+  return res.status(403).send("Forbidden")
+})
+
+// === Meta Webhook: Messages (POST) ===
+app.post("/webhook/meta", express.raw({ type: "*/*" }), async (req, res) => {
+  const rawBody = req.body
+  const signature = req.headers["x-hub-signature-256"]
+
+  // Verify signature
+  if (!verifyMetaSignature(rawBody, signature)) {
+    console.log("[Meta] Invalid signature ❌")
+    return res.status(403).json({ error: "Invalid signature" })
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(rawBody.toString("utf-8"))
+  } catch {
+    return res.status(200).json({ status: "ok" })
+  }
+
+  // ตอบ Meta ทันที (ต้องตอบภายใน 20 วินาที)
+  res.status(200).json({ status: "ok" })
+
+  const object = parsed.object // "page" = Facebook, "instagram" = Instagram
+  const platform = object === "instagram" ? "instagram" : "facebook"
+
+  const entries = parsed.entry || []
+  for (const entry of entries) {
+    const messagingEvents = entry.messaging || []
+    for (const event of messagingEvents) {
+      const sender = event.sender
+      const recipient = event.recipient
+      if (!sender?.id) continue
+
+      // ข้ามข้อความที่ Bot ส่งเอง
+      if (event.message?.is_echo) continue
+
+      const senderId = sender.id
+      const sourceId = platform === "facebook" ? `fb_${senderId}` : `ig_${senderId}`
+
+      // ดึง user profile (cached)
+      const profile = await getMetaUserProfile(senderId).catch(() => ({ name: senderId, profilePic: null }))
+      const userName = profile.name
+
+      // Save group meta
+      saveGroupMeta(sourceId, userName, { type: "user" }, platform).catch(() => {})
+
+      // handle text message
+      if (event.message?.text) {
+        const msgText = event.message.text
+        await saveMsg(sourceId, {
+          role: "user",
+          userName,
+          userId: senderId,
+          content: msgText,
+          messageType: "text",
+          messageId: event.message.mid || null,
+          timestamp: event.timestamp || null,
+          recipientId: recipient?.id || null,
+        }, platform)
+
+        console.log(`[Meta/${platform}] ${userName}@${sourceId.substring(0, 12)}: ${msgText.substring(0, 60)}`)
+        analyzeChat(sourceId, userName, msgText, senderId, { type: "user" }).catch((e) => console.error("[Meta/Skill] Catch:", e.message))
+      }
+
+      // handle image attachment
+      const attachments = event.message?.attachments || []
+      for (const att of attachments) {
+        if (att.type === "image") {
+          const imgUrl = att.payload?.url || null
+          const imageDescription = null // Vision AI สำหรับ image URL จาก Meta ทำได้ในอนาคต
+          const content = `[image]${imgUrl ? ": " + imgUrl : ""}`
+          await saveMsg(sourceId, {
+            role: "user",
+            userName,
+            userId: senderId,
+            content,
+            messageType: "image",
+            imageUrl: imgUrl,
+            imageDescription,
+            messageId: event.message?.mid || null,
+            timestamp: event.timestamp || null,
+            recipientId: recipient?.id || null,
+          }, platform)
+
+          console.log(`[Meta/${platform}] ${userName}@${sourceId.substring(0, 12)}: [image]`)
+          analyzeChat(sourceId, userName, content, senderId, { type: "user" }).catch((e) => console.error("[Meta/Skill] Catch:", e.message))
+        }
+      }
+    }
+  }
+})
+
+// === LINE Webhook endpoint ===
 app.post("/webhook", express.raw({ type: "*/*" }), async (req, res) => {
   const rawBody = req.body;
   const bodyString = rawBody.toString("utf-8");
@@ -1651,6 +1816,23 @@ async function migrateOldCollections() {
   }
 
   console.log(`[Migrate] Done! Total: ${totalMigrated} docs migrated`);
+
+  // Backfill platform field — เติม platform: "line" ให้ documents ที่ยังไม่มี
+  try {
+    const msgsResult = await database.collection(MESSAGES_COLL).updateMany(
+      { platform: { $exists: false } },
+      { $set: { platform: "line" } }
+    );
+    const metaResult = await database.collection("groups_meta").updateMany(
+      { platform: { $exists: false } },
+      { $set: { platform: "line" } }
+    );
+    if (msgsResult.modifiedCount > 0 || metaResult.modifiedCount > 0) {
+      console.log(`[Migrate] Backfill platform: ${msgsResult.modifiedCount} messages, ${metaResult.modifiedCount} groups_meta`);
+    }
+  } catch (e) {
+    console.error("[Migrate] Backfill platform error:", e.message);
+  }
 }
 
 // === Daily Summary — น้องปูสรุปงานสิ้นวัน ===
@@ -1924,7 +2106,7 @@ app.post("/advice/generate", async (req, res) => {
   res.json(latest);
 });
 
-// === Advisor API — ให้ ClawTeam เรียกดึงข้อมูล ===
+// === Advisor API — ให้ OpenClaw เรียกดึงข้อมูล ===
 // (path ยังเป็น /api/advisor/* เพื่อ backward compatibility)
 
 // ดึง sources ที่มีข้อความใหม่หลัง since
@@ -2024,7 +2206,7 @@ app.get("/api/advisor/source-detail/:sourceId", async (req, res) => {
   }
 });
 
-// บันทึกคำแนะนำจาก ClawTeam Advisor
+// บันทึกคำแนะนำจาก OpenClaw Advisor
 app.post("/api/advisor/advice", express.json(), async (req, res) => {
   const database = await getDB();
   if (!database) return res.status(500).json({ error: "DB not ready" });
@@ -2049,7 +2231,7 @@ app.post("/api/advisor/advice", express.json(), async (req, res) => {
     await database.collection("ai_advice").insertOne({
       advice: normalized,
       analyzedSources: analyzedSources || [],
-      source: "clawteam",
+      source: "openclaw",
       createdAt: new Date(pulledAt || Date.now()),
     });
 
@@ -2061,7 +2243,7 @@ app.post("/api/advisor/advice", express.json(), async (req, res) => {
   }
 });
 
-// อัพเดต lastPulledAt ของ sources ที่ ClawTeam ดึงไปแล้ว
+// อัพเดต lastPulledAt ของ sources ที่ OpenClaw ดึงไปแล้ว
 app.post("/api/advisor/update-pulled", express.json(), async (req, res) => {
   const database = await getDB();
   if (!database) return res.status(500).json({ error: "DB not ready" });
@@ -2092,7 +2274,7 @@ app.post("/api/advisor/update-pulled", express.json(), async (req, res) => {
 
 // === Cost Tracking API ===
 
-// รับ cost จาก ClawTeam/external
+// รับ cost จาก OpenClaw/external
 app.post("/api/advisor/cost", express.json(), async (req, res) => {
   const database = await getDB();
   if (!database) return res.status(500).json({ error: "DB not ready" });

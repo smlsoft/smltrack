@@ -84,7 +84,7 @@ export default function ConfigPage() {
             <div className="w-16 h-16 bg-gray-800 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-3">
               🔒
             </div>
-            <h1 className="text-xl font-bold text-white">SMLTrack Config</h1>
+            <h1 className="text-xl font-bold text-white">SML Mini CRM Config</h1>
             <p className="text-sm text-gray-400 mt-1">กรอกรหัสผ่านเพื่อเข้าถึง</p>
           </div>
           <div className="space-y-4">

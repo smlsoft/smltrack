@@ -21,17 +21,21 @@
 
 ---
 
-### น้องกุ้ง — AI Advisor (ClawTeam Multi-Agent)
+### น้องกุ้ง — AI Advisor (OpenClaw)
 
-**วิเคราะห์ข้อมูลทุกห้อง ทุก 1 ชั่วโมง ด้วย 3 AI agents พร้อมกัน:**
+**วิเคราะห์ข้อมูลทุกห้อง ทุก 1 ชั่วโมง ผ่าน OpenClaw AI Gateway:**
 
-| Agent | หน้าที่ | ผลลัพธ์ |
-|-------|---------|---------|
-| **Sentiment Agent** | วิเคราะห์ความพอใจ + ตอบช้า | critical / warning alerts |
-| **Pipeline Agent** | วิเคราะห์โอกาสขาย | opportunity แนะนำ |
-| **Summary Agent** | สรุปภาพรวม | สถิติ + trend |
+- ดึงแชทใหม่จาก Agent API → วิเคราะห์ด้วย AI → เก็บ advice ใน MongoDB
+- เฉพาะ sources ที่มีการเปลี่ยนแปลง (ประหยัด token)
+- CRM analysis ทุก 6 ชม. (follow-up, ลูกค้าหลุด)
+- รองรับ 20+ messaging channels (Telegram, LINE, Slack, etc.)
 
-ประหยัด token เพราะแยก prompt เล็กๆ 3 ชุด แทนส่งทีเดียวทั้งก้อน
+| Priority | เมื่อไหร่ | ตัวอย่าง |
+|----------|---------|---------|
+| **Critical** | ลูกค้าไม่พอใจ / ตอบช้ามาก | "ลูกค้า X ร้องเรียน ควรโทรติดตามทันที" |
+| **Warning** | sentiment เริ่มแย่ | "ห้อง Y ลูกค้าเริ่มไม่พอใจ ควรเข้าไปดูแล" |
+| **Opportunity** | โอกาสขายสูง | "ลูกค้า Z สนใจซื้อมาก ควรเสนอราคา" |
+| **Info** | สถิติทั่วไป | "วันนี้มี 150 ข้อความ ห้อง A คุยเยอะสุด" |
 
 ---
 
@@ -51,46 +55,17 @@
 
 - ทุก AI call ถูก track: provider, model, feature, tokens, cost
 - แสดงผลใน Dashboard: วันนี้ / เดือนนี้ / แยกฟีเจอร์ / แยก provider
-- ราคาโดยประมาณเป็น THB (x34)
+- ราคาโดยประมาณเป็น THB
 
 ---
 
-### Vision AI — อ่านรูปเป็นข้อความ
+### อื่นๆ
 
-ลูกค้าส่งรูปเข้ามา → AI วิเคราะห์และบรรยายเป็นภาษาไทยอัตโนมัติ
-→ เก็บคำอธิบายลง Database → ค้นหาได้ + นำไปวิเคราะห์ต่อ
-
----
-
-### ตรวจจับตอบช้า
-
-- ลูกค้าส่งข้อความ → พนักงานยังไม่ตอบ → ระบบเตือน
-- เร็ว (< 5 นาที) / กลาง (5-30 นาที) / ช้า (> 30 นาที)
-- แสดง alert banner บน Dashboard ทันที
-
----
-
-### CRM อัตโนมัติจากแชท
-
-- สร้างจากแชทอัตโนมัติ — ไม่ต้องกรอกเอง
-- ดึง LINE profile (รูป, ชื่อ) อัตโนมัติ
-- บันทึก sentiment, โอกาสซื้อ, tags, pipeline ต่อลูกค้า
-- แก้ไขข้อมูลเพิ่มเติมได้ (บริษัท, เบอร์, email, หมายเหตุ)
-
----
-
-### เชื่อม ERP ผ่าน MCP
-
-เชื่อมต่อ bc-erp MCP Server → 61 tools:
-เช็คสต็อก, ยอดขาย, KPI, ลูกหนี้/เจ้าหนี้, สินค้าขายดี
-
----
-
-### RAG — จำแชทเก่าได้
-
-1. **Vector Search** (ค้นตามความหมาย)
-2. **Keyword Search** (ค้นตามคำ)
-3. **Recent Messages** (ข้อความล่าสุด)
+- **Vision AI** — ส่งรูป → AI บรรยายเป็นภาษาไทย
+- **ตรวจจับตอบช้า** — alert เมื่อพนักงานตอบช้า > 30 นาที
+- **CRM อัตโนมัติ** — สร้างจากแชท ไม่ต้องกรอกเอง
+- **RAG** — จำแชทเก่าได้ (Vector + Keyword + Recent)
+- **MCP ERP** — เชื่อม ERP 61 tools (สต็อก, ยอดขาย, KPI)
 
 ---
 
@@ -98,69 +73,59 @@
 
 ```
 LINE OA
-  │
-  ▼
+  |
+  v
 Cloudflare Tunnel (smlclaw.satistang.com)
-  │
-  ▼
-┌──────────────────── Docker Desktop ────────────────────┐
-│                                                         │
-│  ┌──────────────────┐                                   │
-│  │  ClawTeam         │  ← AI Advisor (แกนหลัก)         │
-│  │  Python + Cron    │  ← multi-agent ทุก 1 ชม.        │
-│  │  Port: 8080       │  ← cost tracking                 │
-│  └────────┬─────────┘                                   │
-│           │ API                                          │
-│           ▼                                              │
-│  ┌─────────────────┐   ┌──────────────────┐             │
-│  │  Agent (proxy/)  │   │  Dashboard       │             │
-│  │  Node.js         │   │  Next.js         │             │
-│  │  Port: 3000      │   │  Port: 3001      │             │
-│  │                  │   │  (host: 3002)    │             │
-│  │  - LINE webhook  │◄──│                  │             │
-│  │  - AI + RAG      │   │  - แชท iPhone    │             │
-│  │  - MCP ERP       │   │  - CRM / KPI     │             │
-│  │  - Cost tracking │   │  - Advice / Cost  │             │
-│  └────────┬─────────┘   └──────────────────┘             │
-│           │                                              │
-│  ┌────────┴─────────┐                                    │
-│  │  Cloudflare       │──► Internet                       │
-│  │  Tunnel           │                                   │
-│  └──────────────────┘                                    │
-└──────────────────────────────────────────────────────────┘
-            │
-            ▼
+  |
+  v
++------------------ Docker Desktop --------------------+
+|                                                       |
+|  +-----------------+                                  |
+|  |  OpenClaw        |  <- AI Advisor (แกนหลัก)        |
+|  |  Port: 18789     |  <- cron ทุก 1 ชม.             |
+|  +--------+---------+                                 |
+|           | curl API                                  |
+|           v                                           |
+|  +-----------------+   +------------------+           |
+|  |  Agent (proxy/) |   |  Dashboard       |           |
+|  |  Node.js        |   |  Next.js         |           |
+|  |  Port: 3000     |   |  Port: 3002      |           |
+|  |  - LINE webhook |<--|  - แชท iPhone    |           |
+|  |  - AI + RAG     |   |  - CRM / KPI     |           |
+|  |  - MCP ERP      |   |  - Advice / Cost  |           |
+|  +--------+---------+  +------------------+           |
+|           |                                           |
+|  +--------+---------+                                 |
+|  |  Cloudflare       |-> Internet                     |
+|  +-------------------+                                |
++-------------------------------------------------------+
+            |
+            v
       MongoDB Atlas (Cloud)
 ```
 
 | Container | Folder | Port | หน้าที่ |
 |-----------|--------|------|---------|
-| smltrack-clawteam | `clawteam/` | 8080 | AI Advisor — multi-agent, cron, cost tracking |
-| smltrack-agent | `proxy/` | 3000 | LINE webhook, AI chatbot, RAG, MCP, APIs |
-| smltrack-dashboard | `smltrackdashboard/` | 3002 | Web Dashboard (แชท, CRM, KPI, Advice, Cost) |
+| smltrack-openclaw | `openclaw/` | 18789 | AI Advisor — cron, cost tracking |
+| smltrack-agent | `proxy/` | 3000 | LINE webhook, AI chatbot, RAG, MCP |
+| smltrack-dashboard | `smltrackdashboard/` | 3002 | Web Dashboard |
 | smltrack-tunnel | cloudflared | — | เปิดให้เข้าจาก Internet |
 
 ---
 
-## AI ที่ใช้
-
-### Agent (LINE reply — ฟรีทั้งหมด)
+## AI ที่ใช้ (ฟรีทั้งหมด)
 
 ```
 OpenRouter Nemotron (free)
-  ↓ fail → OpenRouter Llama 3.3-70B (free)
-    ↓ fail → OpenRouter Trinity (free)
-      ↓ fail → SambaNova (Qwen3-235B)
-        ↓ fail → Groq (Llama 3.3-70B)
-          ↓ fail → Cerebras (Qwen3-235B)
-            ↓ fail → Gemini Flash
+  -> OpenRouter Llama 3.3-70B (free)
+    -> OpenRouter Trinity (free)
+      -> SambaNova (Qwen3-235B)
+        -> Groq (Llama 3.3-70B)
+          -> Cerebras (Qwen3-235B)
+            -> Gemini Flash
 ```
 
 ตัวไหน rate limit → cooldown 30 นาทีแล้วข้ามทันที
-
-### ClawTeam Advisor (ทุก 1 ชม.)
-
-OpenRouter Qwen3-235B-A22B (ตั้งผ่าน `AI_MODEL` env var)
 
 ---
 
@@ -180,21 +145,12 @@ OpenRouter Qwen3-235B-A22B (ตั้งผ่าน `AI_MODEL` env var)
 ## Quick Start
 
 ```bash
-# 1. Clone
 git clone https://github.com/smlsoft/smltrack.git
 cd smltrack
-
-# 2. สร้าง .env
 copy .env.example .env
 # แก้ไขค่าใน .env (ดู docs/INSTALL.md)
-
-# 3. Run
 docker compose up -d --build
-
-# 4. เข้าใช้งาน
-# Dashboard: http://localhost:3002/dashboard
-# Agent:     http://localhost:3000/
-# ClawTeam:  http://localhost:8080/
+# เข้า: http://localhost:3002/dashboard
 ```
 
 ดูคู่มือติดตั้งแบบละเอียด → [docs/INSTALL.md](docs/INSTALL.md)
@@ -205,7 +161,7 @@ docker compose up -d --build
 
 | Component | Technology |
 |-----------|-----------|
-| AI Advisor | Python + ClawTeam (multi-agent swarm) |
+| AI Advisor | OpenClaw (AI Gateway + Cron) |
 | AI Agent | Node.js + Express |
 | Dashboard | Next.js + Tailwind CSS |
 | Database | MongoDB Atlas (Free M0) |
@@ -220,10 +176,9 @@ docker compose up -d --build
 
 | เอกสาร | เนื้อหา |
 |--------|---------|
-| [คู่มือติดตั้ง (INSTALL.md)](docs/INSTALL.md) | ติดตั้งทั้งระบบบน Docker Desktop |
+| [คู่มือติดตั้ง](docs/INSTALL.md) | ติดตั้งทั้งระบบบน Docker Desktop |
 | [Docker Desktop](docs/setup-docker.md) | ติดตั้ง Docker Desktop |
 | [MongoDB Atlas](docs/setup-mongodb.md) | สมัคร MongoDB Atlas (ฟรี) |
 | [LINE Messaging API](docs/setup-line.md) | สร้าง LINE Channel |
 | [AI Providers](docs/setup-ai-providers.md) | สมัคร AI Providers (ฟรีทั้งหมด) |
 | [Cloudflare Tunnel](docs/setup-cloudflare-tunnel.md) | ตั้งค่า Cloudflare Tunnel (ฟรี) |
-| [ClawTeam Advisor](docs/setup-clawteam.md) | ตั้งค่า AI Advisor + Cost Tracking |

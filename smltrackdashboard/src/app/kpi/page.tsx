@@ -153,7 +153,7 @@ export default function KpiPage() {
             <Link href="/" className="text-gray-400 hover:text-white text-xl">&larr;</Link>
             <div>
               <h1 className="text-xl font-bold">📊 KPI Dashboard</h1>
-              <p className="text-xs text-gray-400">SML ChatFlow &middot; Real-time</p>
+              <p className="text-xs text-gray-400">SML Mini CRM &middot; Real-time</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

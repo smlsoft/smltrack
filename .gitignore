@@ -26,8 +26,17 @@ yarn-debug.log*
 # docker
 *.log
 
-# openclaw (legacy folder — ไม่ใช้แล้ว ใช้ clawteam/ แทน)
-openclaw/
-
-# clawteam runtime
-clawteam/__pycache__/
+# openclaw runtime data (ห้าม commit)
+openclaw/logs/
+openclaw/cron/runs/
+openclaw/workspace/
+openclaw/devices/
+openclaw/agents/
+openclaw/canvas/
+openclaw/identity/
+openclaw/exec-approvals.json
+openclaw/update-check.json
+openclaw/*.bak
+openclaw/*.bak.*
+*.png
+.playwright-mcp/
