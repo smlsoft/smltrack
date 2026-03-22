@@ -3,7 +3,6 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ThemeToggle } from "@/components/ThemeProvider";
 
 interface Customer {
   _id: string;
@@ -25,8 +24,15 @@ interface Customer {
   pipelineStage: string;
   lastSentiment: { score: number; level: string; reason?: string } | null;
   lastPurchaseIntent: { score: number; level: string; reason?: string } | null;
+  dealValue?: number;
+  expectedCloseDate?: string;
+  winLossReason?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function formatTHB(value: number) {
+  return `฿${value.toLocaleString("th-TH")}`;
 }
 
 const STAGES: Record<string, { label: string; color: string; icon: string }> = {
@@ -71,6 +77,18 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const [notes, setNotes] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [customTags, setCustomTags] = useState("");
+  // Deal fields
+  const [dealValue, setDealValue] = useState("");
+  const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [winLossReason, setWinLossReason] = useState("");
+  // Task modal
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskPriority, setTaskPriority] = useState("medium");
+  const [taskNotes, setTaskNotes] = useState("");
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskSaved, setTaskSaved] = useState(false);
 
   useEffect(() => {
     fetch(`/dashboard/api/customers/${id}`)
@@ -89,6 +107,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           setNotes(d.notes || "");
           setAvatarUrl(d.avatarUrl || "");
           setCustomTags((d.customTags || []).join(", "));
+          setDealValue(d.dealValue != null ? String(d.dealValue) : "");
+          setExpectedCloseDate(d.expectedCloseDate ? d.expectedCloseDate.split("T")[0] : "");
+          setWinLossReason(d.winLossReason || "");
         }
         setLoading(false);
       })
@@ -105,6 +126,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         firstName, lastName, company, position,
         phone, email, lineId, address, notes, avatarUrl,
         customTags: customTags.split(",").map((t) => t.trim()).filter(Boolean),
+        dealValue: dealValue !== "" ? parseFloat(dealValue) : undefined,
+        expectedCloseDate: expectedCloseDate || undefined,
+        winLossReason: winLossReason || undefined,
       }),
     });
     setSaving(false);
@@ -115,6 +139,27 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
     }, 1000);
   };
 
+  const handleCreateTask = async () => {
+    if (!taskTitle.trim()) return;
+    setTaskSaving(true);
+    await fetch("/dashboard/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        customerId: id,
+        customerName: customer ? (firstName || lastName ? `${firstName} ${lastName}`.trim() : customer.name) : "",
+        title: taskTitle,
+        notes: taskNotes,
+        dueDate: taskDueDate || null,
+        priority: taskPriority,
+      }),
+    });
+    setTaskSaving(false);
+    setTaskSaved(true);
+    setTaskTitle(""); setTaskDueDate(""); setTaskPriority("medium"); setTaskNotes("");
+    setTimeout(() => { setTaskSaved(false); setShowTaskModal(false); }, 1200);
+  };
+
   if (loading) return <div className="min-h-screen theme-bg flex items-center justify-center"><div className="theme-text-muted animate-pulse">Loading...</div></div>;
   if (!customer) return <div className="min-h-screen theme-bg flex items-center justify-center"><div className="text-red-400">ไม่พบลูกค้า</div></div>;
 
@@ -122,6 +167,59 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="min-h-screen theme-bg theme-text">
+      {/* Task Modal */}
+      {showTaskModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-700 p-6 space-y-4" style={{ background: "var(--bg-card)" }}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-lg">📋 สร้างงานติดตาม</h2>
+              <button onClick={() => setShowTaskModal(false)} className="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <p className="text-xs theme-text-muted">ลูกค้า: {firstName || lastName ? `${firstName} ${lastName}`.trim() : customer.name}</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] theme-text-muted mb-1">ชื่องาน *</label>
+                <input type="text" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)}
+                  placeholder="ติดตามใบเสนอราคา, โทรหา, นัดประชุม..."
+                  className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-900 text-sm theme-text" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] theme-text-muted mb-1">ความสำคัญ</label>
+                  <select value={taskPriority} onChange={(e) => setTaskPriority(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-900 text-sm theme-text">
+                    <option value="high">🔴 ด่วน</option>
+                    <option value="medium">🟡 ปกติ</option>
+                    <option value="low">🟢 ต่ำ</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] theme-text-muted mb-1">กำหนดส่ง</label>
+                  <input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-900 text-sm theme-text" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] theme-text-muted mb-1">หมายเหตุ</label>
+                <textarea value={taskNotes} onChange={(e) => setTaskNotes(e.target.value)} rows={3}
+                  placeholder="รายละเอียดเพิ่มเติม..."
+                  className="w-full px-3 py-2 rounded-lg border border-gray-700 bg-gray-900 text-sm theme-text resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowTaskModal(false)}
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-700 text-sm theme-text-muted hover:theme-text transition">
+                ยกเลิก
+              </button>
+              <button onClick={handleCreateTask} disabled={taskSaving || !taskTitle.trim()}
+                className={`flex-1 px-4 py-2 rounded-lg text-white text-sm font-medium transition disabled:opacity-50 ${taskSaved ? "bg-emerald-600" : "bg-blue-600 hover:bg-blue-500"}`}>
+                {taskSaving ? "กำลังบันทึก..." : taskSaved ? "✓ สร้างแล้ว!" : "📋 สร้างงาน"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="border-b theme-border px-6 py-4 sticky top-0 z-10" style={{ background: "var(--bg-primary)" }}>
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -147,13 +245,20 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowTaskModal(true)}
+              className="px-3 py-2 rounded-lg text-sm font-medium bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 text-cyan-300 hover:text-white transition">
+              ➕ งานติดตาม
+            </button>
+            <Link href="/tasks" className="px-3 py-2 rounded-lg text-sm font-medium bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 hover:text-white transition">
+              📋 งานทั้งหมด
+            </Link>
+            <button
               onClick={handleSave}
               disabled={saving}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition ${saving ? "opacity-50" : saved ? "bg-emerald-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
             >
               {saving ? "กำลังบันทึก..." : saved ? "✓ บันทึกแล้ว" : "💾 บันทึก"}
             </button>
-            <ThemeToggle />
           </div>
         </div>
       </header>
@@ -258,6 +363,40 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
               placeholder="บันทึกเพิ่มเติม..."
               className="w-full px-3 py-2 rounded-lg border theme-border text-sm theme-bg theme-text resize-none" style={{ background: "var(--bg-primary)" }} />
+          </div>
+
+          {/* Deal Value Section */}
+          <div className="mt-6 pt-4 border-t theme-border">
+            <h3 className="text-xs font-bold theme-text-muted mb-3 uppercase tracking-wide">💰 ข้อมูล Deal</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] theme-text-muted mb-1">มูลค่า Deal (บาท)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm theme-text-muted">฿</span>
+                  <input type="number" value={dealValue} onChange={(e) => setDealValue(e.target.value)}
+                    placeholder="0"
+                    className="w-full pl-7 pr-3 py-2 rounded-lg border theme-border text-sm theme-bg theme-text" style={{ background: "var(--bg-primary)" }} />
+                </div>
+                {dealValue && parseFloat(dealValue) > 0 && (
+                  <p className="text-[10px] text-emerald-400 mt-1">{formatTHB(parseFloat(dealValue))}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-[11px] theme-text-muted mb-1">วันที่คาดว่าจะปิด</label>
+                <input type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border theme-border text-sm theme-bg theme-text" style={{ background: "var(--bg-primary)" }} />
+              </div>
+            </div>
+            {(customer.pipelineStage === "closed_won" || customer.pipelineStage === "closed_lost") && (
+              <div className="mt-3">
+                <label className="block text-[11px] theme-text-muted mb-1">
+                  เหตุผล{customer.pipelineStage === "closed_won" ? "ที่ปิดการขายได้" : "ที่ไม่ซื้อ"}
+                </label>
+                <input type="text" value={winLossReason} onChange={(e) => setWinLossReason(e.target.value)}
+                  placeholder={customer.pipelineStage === "closed_won" ? "ราคาดี, สินค้าตรงความต้องการ..." : "ราคาสูงเกิน, เลือกคู่แข่ง..."}
+                  className="w-full px-3 py-2 rounded-lg border theme-border text-sm theme-bg theme-text" style={{ background: "var(--bg-primary)" }} />
+              </div>
+            )}
           </div>
 
           <div className="mt-4 flex items-center justify-between">

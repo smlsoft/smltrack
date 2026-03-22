@@ -2,6 +2,7 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useState } from "react";
+import Link from "next/link";
 
 // Dev mode: ไม่มี GOOGLE_CLIENT_ID
 const DEV_MODE = !process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && typeof window !== "undefined"
@@ -76,16 +77,36 @@ export default function UserMenu() {
                 {(user as any)?.plan === "pro" ? "Pro" : "Free"}
               </span>
             </div>
+            {/* Nav links */}
+            <div className="border-t border-gray-800">
+              {[
+                { href: "/dashboard/settings", icon: "⚙️", label: "Settings" },
+                { href: "/dashboard/connections", icon: "🔗", label: "Connections" },
+                { href: "/dashboard/team", icon: "👥", label: "ทีม" },
+              ].map(({ href, icon, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white transition"
+                >
+                  <span className="text-base">{icon}</span>
+                  {label}
+                </Link>
+              ))}
+            </div>
             {/* Sign out */}
-            <button
-              onClick={() => {
-                setOpen(false);
-                signOut({ callbackUrl: "/dashboard/login" });
-              }}
-              className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-950/40 hover:text-red-300 transition"
-            >
-              ออกจากระบบ
-            </button>
+            <div className="border-t border-gray-800">
+              <button
+                onClick={() => {
+                  setOpen(false);
+                  signOut({ callbackUrl: "/dashboard/login" });
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-950/40 hover:text-red-300 transition"
+              >
+                ออกจากระบบ
+              </button>
+            </div>
           </div>
         </>
       )}

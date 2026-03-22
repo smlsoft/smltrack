@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -17,9 +18,8 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import Link from "next/link";
 import IPhoneChat from "@/components/IPhoneChat";
-import { ThemeToggle } from "@/components/ThemeProvider";
-import UserMenu from "@/components/UserMenu";
 
 interface Message {
   _id: string;
@@ -69,6 +69,8 @@ interface AlertData {
 }
 
 export default function Home() {
+  const { data: session, status: authStatus } = useSession();
+  const router = useRouter();
   const [groups, setGroups] = useState<Group[]>([]);
   const [order, setOrder] = useState<string[]>([]);
   const [autoSort, setAutoSort] = useState(true);
@@ -77,6 +79,13 @@ export default function Home() {
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [showAlerts, setShowAlerts] = useState(true);
+
+  // Redirect ถ้ายังไม่ setup
+  useEffect(() => {
+    if (authStatus === "authenticated" && (session?.user as any)?.setupComplete === false) {
+      router.replace("/dashboard/onboarding");
+    }
+  }, [authStatus, session, router]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -192,13 +201,12 @@ export default function Home() {
 
       {/* Header */}
       <header className="border-b theme-border px-4 py-3 sticky top-0 theme-bg backdrop-blur z-10" style={{ background: "var(--bg-primary)" }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-cyan-500 rounded-xl flex items-center justify-center text-lg shadow-lg shadow-indigo-500/20">💬</div>
+        <div className="flex items-center gap-3 pl-10 md:pl-0">
           <div>
-            <h1 className="text-lg font-bold">SML Mini CRM</h1>
-            <p className="text-xs theme-text-muted">AI Chat Intelligence — LINE · Facebook · Instagram</p>
+            <h1 className="text-base font-bold">Dashboard</h1>
+            <p className="text-xs theme-text-muted">LINE · Facebook · Instagram</p>
           </div>
-          <div className="ml-auto flex items-center gap-3 flex-wrap">
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
             {/* Filters — Traffic Light with Labels */}
             <div className="flex items-center gap-2 flex-wrap">
               <button
@@ -268,12 +276,11 @@ export default function Home() {
               <span className="text-xs text-gray-300">Auto Sort</span>
             </label>
             <Link href="/crm" className="px-3 py-1.5 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 rounded-lg text-xs text-cyan-300 hover:text-white transition">👥 CRM</Link>
+            <Link href="/tasks" className="px-3 py-1.5 bg-blue-900/50 hover:bg-blue-800/50 border border-blue-700/50 rounded-lg text-xs text-blue-300 hover:text-white transition">📋 งาน</Link>
             <Link href="/kpi" className="px-3 py-1.5 bg-purple-900/50 hover:bg-purple-800/50 border border-purple-700/50 rounded-lg text-xs text-purple-300 hover:text-white transition">📊 KPI</Link>
+            <Link href="/templates" className="px-3 py-1.5 bg-amber-900/50 hover:bg-amber-800/50 border border-amber-700/50 rounded-lg text-xs text-amber-300 hover:text-white transition">⚡ Templates</Link>
             <Link href="/advice" className="px-3 py-1.5 bg-orange-900/50 hover:bg-orange-800/50 border border-orange-700/50 rounded-lg text-xs text-orange-300 hover:text-white transition">🦐 น้องกุ้ง</Link>
             <Link href="/costs" className="px-3 py-1.5 bg-emerald-900/50 hover:bg-emerald-800/50 border border-emerald-700/50 rounded-lg text-xs text-emerald-300 hover:text-white transition">💰 AI Cost</Link>
-            <Link href="/config" className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 hover:text-white transition">⚙️</Link>
-            <ThemeToggle />
-            <UserMenu />
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
               <span className="text-xs text-green-400">{groups.length} groups &middot; Live</span>

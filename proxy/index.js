@@ -2411,6 +2411,177 @@ app.get("/api/costs", async (req, res) => {
   }
 });
 
+// === Telegram Bot (น้องกุ้ง) ===
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+
+// Webhook endpoint for Telegram
+app.post("/webhook/telegram", express.json(), async (req, res) => {
+  res.sendStatus(200);
+  const update = req.body;
+  if (!update.message) return;
+
+  const chatId = update.message.chat.id;
+  const text = update.message.text || "";
+
+  // Handle /start GUID
+  if (text.startsWith("/start ")) {
+    const guid = text.replace("/start ", "").trim();
+    await saveTelegramLink(chatId, guid);
+    await sendTelegram(chatId, "🦐 สวัสดีค่ะ! น้องกุ้งเชื่อมต่อกับบัญชีของคุณเรียบร้อยแล้ว\n\nพิมพ์ถามอะไรก็ได้ค่ะ เช่น:\n• สรุปแชทวันนี้\n• ลูกค้าไหนต้องติดตาม\n• วิเคราะห์ยอดขาย");
+    return;
+  }
+
+  if (text === "/start") {
+    await sendTelegram(chatId, "🦐 น้องกุ้งค่ะ! กรุณาเชื่อมต่อบัญชีผ่าน SML Mini CRM Dashboard ก่อนนะคะ\n\nไปที่: ตั้งค่า → เชื่อมต่อ → Telegram");
+    return;
+  }
+
+  // Look up account by chatId
+  const account = await findAccountByTelegramChatId(chatId);
+  if (!account) {
+    await sendTelegram(chatId, "❌ ยังไม่ได้เชื่อมต่อบัญชี กรุณาเชื่อมผ่าน Dashboard ก่อนค่ะ");
+    return;
+  }
+
+  // Connect to user's MongoDB, get recent data, ask AI
+  await handleTelegramQuery(chatId, text, account);
+});
+
+async function sendTelegram(chatId, text) {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+    });
+  } catch (e) {
+    console.error("[Telegram] Send error:", e.message);
+  }
+}
+
+async function saveTelegramLink(chatId, guid) {
+  const database = await getDB();
+  if (!database) return;
+  try {
+    await database.collection("accounts").updateOne(
+      { _id: guid },
+      { $set: { telegramChatId: chatId, telegramLinkedAt: new Date() } }
+    );
+    console.log(`[Telegram] Linked chatId=${chatId} → guid=${guid}`);
+  } catch (e) {
+    console.error("[Telegram] saveTelegramLink error:", e.message);
+  }
+}
+
+async function findAccountByTelegramChatId(chatId) {
+  const database = await getDB();
+  if (!database) return null;
+  try {
+    return await database.collection("accounts").findOne({ telegramChatId: chatId });
+  } catch (e) {
+    console.error("[Telegram] findAccount error:", e.message);
+    return null;
+  }
+}
+
+async function handleTelegramQuery(chatId, question, account) {
+  // ใช้ MongoDB Atlas ของ system (single-tenant) — ดึง sourceId จาก account
+  let userDb;
+  try {
+    const mongoUri = account.mongodbUri || process.env.MONGODB_URI;
+    const client = new MongoClient(mongoUri, { serverSelectionTimeoutMS: 5000 });
+    await client.connect();
+    userDb = client.db(process.env.MONGODB_DB || "smltrack");
+  } catch (e) {
+    await sendTelegram(chatId, "❌ เชื่อมต่อฐานข้อมูลไม่ได้ กรุณาตรวจสอบ MongoDB URI ใน Dashboard");
+    return;
+  }
+
+  // Get recent data for context
+  const sourceFilter = account.sourceIds?.length
+    ? { sourceId: { $in: account.sourceIds } }
+    : {};
+
+  const [recentMessages, recentAdvice, analytics] = await Promise.all([
+    userDb.collection("messages").find(sourceFilter).sort({ createdAt: -1 }).limit(50).toArray(),
+    userDb.collection("ai_advice").find(sourceFilter).sort({ createdAt: -1 }).limit(1).toArray(),
+    userDb.collection("chat_analytics").find(sourceFilter).sort({ updatedAt: -1 }).limit(10).toArray(),
+  ]);
+
+  // Build context
+  const context = {
+    question,
+    totalMessages: recentMessages.length,
+    rooms: [...new Set(recentMessages.map(m => m.sourceId))].length,
+    latestAdvice: recentAdvice[0]?.advice || [],
+    analytics: analytics.map(a => ({
+      room: a.groupName,
+      sentiment: a.customerSentiment,
+      purchase: a.purchaseIntent,
+    })),
+  };
+
+  // Call AI (use account's AI key or fallback to system key)
+  const aiKey = account.aiKeys?.openrouterKey || process.env.OPENROUTER_API_KEY;
+  if (!aiKey) {
+    await sendTelegram(chatId, "❌ ยังไม่ได้ตั้งค่า AI API key กรุณาตั้งค่าใน Dashboard → Settings");
+    return;
+  }
+
+  const messages = [
+    { role: "system", content: "คุณคือน้องกุ้ง 🦐 AI advisor ประจำธุรกิจ ตอบภาษาไทย กระชับ ตรงประเด็น ใช้ emoji เล็กน้อย ใช้ HTML format (<b>bold</b>, <i>italic</i>)" },
+    { role: "user", content: `ข้อมูลธุรกิจ: ${JSON.stringify(context, null, 0).slice(0, 2000)}\n\nคำถาม: ${question}` },
+  ];
+
+  try {
+    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey}` },
+      body: JSON.stringify({ model: "qwen/qwen3-235b-a22b:free", messages, max_tokens: 500 }),
+    });
+    const data = await resp.json();
+    let answer = data.choices?.[0]?.message?.content || "ไม่สามารถตอบได้ในตอนนี้ค่ะ";
+    // Remove think tags
+    if (answer.includes("</think>")) answer = answer.split("</think>").pop().trim();
+    await sendTelegram(chatId, `🦐 ${answer}`);
+    // Track cost
+    if (data.usage) {
+      await trackAICost({
+        provider: "openrouter",
+        model: "qwen3-235b-a22b:free",
+        feature: "telegram-query",
+        inputTokens: data.usage.prompt_tokens || 0,
+        outputTokens: data.usage.completion_tokens || 0,
+        sourceId: account._id || null,
+        success: true,
+      });
+    }
+  } catch (e) {
+    console.error("[Telegram] AI error:", e.message);
+    await sendTelegram(chatId, "❌ เกิดข้อผิดพลาดในการวิเคราะห์ กรุณาลองใหม่ค่ะ");
+  }
+}
+
+// Setup Telegram webhook (call once via browser/curl)
+app.get("/setup-telegram-webhook", async (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    return res.status(400).json({ error: "TELEGRAM_BOT_TOKEN not set" });
+  }
+  const webhookUrl = `https://crm.satistang.com/webhook/telegram`;
+  try {
+    const resp = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: webhookUrl }),
+    });
+    const data = await resp.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Health check
 app.get("/", (req, res) => {
   res.json({ status: "ok", service: "SMLTrack AI Agent" });

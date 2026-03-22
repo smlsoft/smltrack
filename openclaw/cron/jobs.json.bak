@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "jobs": [
+    {
+      "id": "20a462a2-fc8e-44e2-9e5e-9843a27af674",
+      "sessionKey": "advisor-cron",
+      "name": "smltrack-advisor",
+      "enabled": true,
+      "createdAtMs": 1774008018371,
+      "updatedAtMs": 1774008592468,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 * * * *",
+        "tz": "Asia/Bangkok",
+        "staggerMs": 300000
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are น้องกุ้ง AI Advisor. Use bash exec tool to run curl commands.\n\nCalculate SINCE as 1 hour ago in ISO format.\n\nStep 1: curl -s \"http://agent:3000/api/advisor/sources-changed?since=SINCE\"\nStep 2: For top 3 changed sources, get details: curl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID?since=SINCE\"\nStep 3: Analyze and create 3-7 Thai advice items (critical/warning/opportunity/info)\nStep 4: POST advice: curl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d JSON_BODY\nStep 5: Update pulled: curl -s -X POST http://agent:3000/api/advisor/update-pulled -H \"Content-Type: application/json\" -d JSON_BODY\nStep 6: Track cost: curl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"advisor-openclaw\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw\"}'"
+      },
+      "delivery": {
+        "mode": "silent"
+      },
+      "state": {
+        "nextRunAtMs": 1774166538507,
+        "runningAtMs": 1774166538510
+      }
+    },
+    {
+      "id": "crm-advisor-6h",
+      "sessionKey": "crm-cron",
+      "name": "smltrack-crm",
+      "enabled": true,
+      "createdAtMs": 1774008018371,
+      "updatedAtMs": 1774008592468,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 */6 * * *",
+        "tz": "Asia/Bangkok",
+        "staggerMs": 300000
+      },
+      "sessionTarget": "isolated",
+      "wakeMode": "now",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "You are น้องกุ้ง CRM Advisor. Use bash exec tool to run curl commands.\n\nStep 1: curl -s \"http://agent:3000/api/advisor/sources-changed?since=2025-01-01T00:00:00Z\" to get ALL sources\nStep 2: For top 5 sources with most messages, get details: curl -s \"http://agent:3000/api/advisor/source-detail/SOURCE_ID\"\nStep 3: Analyze CRM data — look for: follow-up opportunities, churned customers (>7 days no message), pipeline stages\nStep 4: POST advice: curl -s -X POST http://agent:3000/api/advisor/advice -H \"Content-Type: application/json\" -d JSON_BODY\nStep 5: Track cost: curl -s -X POST http://agent:3000/api/advisor/cost -H \"Content-Type: application/json\" -d '{\"provider\":\"openrouter\",\"model\":\"qwen/qwen3-235b-a22b\",\"feature\":\"crm-analysis\",\"inputTokens\":0,\"outputTokens\":0,\"totalTokens\":0,\"costUsd\":0,\"service\":\"openclaw-crm\"}'"
+      },
+      "delivery": {
+        "mode": "silent"
+      },
+      "state": {
+        "nextRunAtMs": 1774177459977
+      }
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 
 type TestResult = { ok: boolean; [key: string]: unknown };
 
@@ -117,10 +116,9 @@ export default function ConfigPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <header className="border-b border-gray-800 px-6 py-4 sticky top-0 bg-gray-950/95 backdrop-blur z-10">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-gray-400 hover:text-white transition text-sm">&larr; Dashboard</Link>
-          <div className="w-px h-5 bg-gray-700" />
-          <h1 className="text-lg font-bold">Config</h1>
+        <div className="pl-10 md:pl-0">
+          <h1 className="text-base font-bold">🔗 ช่องทางเชื่อมต่อ</h1>
+          <p className="text-xs text-gray-400">ตั้งค่า LINE, Facebook, Instagram, Telegram</p>
         </div>
       </header>
 

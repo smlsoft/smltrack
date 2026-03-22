@@ -95,6 +95,27 @@ const handler = NextAuth({
           addedBy: userId,
         });
 
+        // สร้าง account doc สำหรับ self-service setup
+        await db.collection("accounts").insertOne({
+          _id: userId as any,
+          email: user.email,
+          name: user.name || "",
+          image: user.image || "",
+          mongodbUri: "",
+          aiKeys: {
+            openrouterKey: "",
+            groqKey: "",
+            sambaNovaKey: "",
+            cerebrasKey: "",
+            googleKey: "",
+          },
+          lineConfig: { channelAccessToken: "", channelSecret: "" },
+          fbConfig: { pageAccessToken: "", appSecret: "", verifyToken: "" },
+          telegramChatId: null,
+          setupComplete: false,
+          createdAt: new Date(),
+        });
+
         return true;
       } catch (err) {
         console.error("[NextAuth] signIn error:", err);
@@ -122,6 +143,12 @@ const handler = NextAuth({
             if (userDoc) {
               (session.user as any).plan = userDoc.plan || "free";
             }
+
+            // ดึง setupComplete จาก accounts collection
+            const accountDoc = await db
+              .collection("accounts")
+              .findOne({ email: session.user.email });
+            (session.user as any).setupComplete = accountDoc?.setupComplete ?? false;
           }
         } catch (err) {
           console.error("[NextAuth] session callback error:", err);

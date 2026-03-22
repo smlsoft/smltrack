@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeProvider";
 
 interface ScoreData { score: number; level: "green" | "yellow" | "red"; reason?: string; }
 interface ResponseTime { avgMinutes: number; level: "green" | "yellow" | "red"; totalResponses: number; fastCount: number; mediumCount: number; slowCount: number; }
@@ -40,6 +38,15 @@ interface PipelineData {
   counts: Record<string, number>; conversionRate: number; closedWon: number; closedLost: number; totalInPipeline: number;
 }
 
+interface RevenueData {
+  totalPipeline: number;
+  wonRevenue: number;
+  lostRevenue: number;
+  pipelineCount: number;
+  wonCount: number;
+  lostCount: number;
+}
+
 interface KpiData {
   summary: {
     totalRooms: number; totalMessages: number; totalStaff: number;
@@ -48,6 +55,7 @@ interface KpiData {
   };
   staffKpi: StaffKpi[]; staffConversion: StaffConversion[]; customerKpi: CustomerKpi[]; rooms: RoomData[];
   pipeline: PipelineData; inactiveCustomers: InactiveCustomer[]; atRiskCustomers: InactiveCustomer[];
+  revenue?: RevenueData;
 }
 
 const LC = {
@@ -121,7 +129,13 @@ function ResponseTimeDetail({ rt }: { rt: ResponseTime }) {
   );
 }
 
-type Tab = "all" | "alert" | "staff" | "customers" | "rooms" | "pipeline" | "inactive";
+type Tab = "all" | "alert" | "staff" | "customers" | "rooms" | "pipeline" | "inactive" | "revenue";
+
+function formatTHB(v: number) {
+  if (v >= 1000000) return `฿${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `฿${(v / 1000).toFixed(0)}K`;
+  return `฿${v.toLocaleString("th-TH")}`;
+}
 
 export default function KpiPage() {
   const [data, setData] = useState<KpiData | null>(null);
@@ -140,7 +154,7 @@ export default function KpiPage() {
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-gray-400 animate-pulse">Loading...</div></div>;
   if (!data) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><div className="text-red-400">Failed</div></div>;
 
-  const { summary: s, staffKpi, staffConversion, customerKpi, rooms, pipeline, inactiveCustomers, atRiskCustomers } = data;
+  const { summary: s, staffKpi, staffConversion, customerKpi, rooms, pipeline, inactiveCustomers, atRiskCustomers, revenue } = data;
   const filteredRooms = tab === "alert" ? rooms.filter((r) => r.customerSentiment?.level === "red" || r.purchaseIntent?.level === "red")
     : staffFilter ? rooms.filter((r) => staffKpi.find((s) => s.name === staffFilter)?.rooms.some((sr) => sr.sourceId === r.sourceId)) : rooms;
   const filteredStaff = staffFilter ? staffKpi.filter((st) => st.name === staffFilter) : staffKpi;
@@ -148,20 +162,14 @@ export default function KpiPage() {
   return (
     <div className="min-h-screen theme-bg theme-text">
       <header className="border-b border-gray-800 px-6 py-4 sticky top-0 bg-gray-950/95 backdrop-blur z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-gray-400 hover:text-white text-xl">&larr;</Link>
-            <div>
-              <h1 className="text-xl font-bold">📊 KPI Dashboard</h1>
-              <p className="text-xs text-gray-400">SML Mini CRM &middot; Real-time</p>
-            </div>
+        <div className="flex items-center justify-between pl-10 md:pl-0">
+          <div>
+            <h1 className="text-base font-bold">📊 KPI Dashboard</h1>
+            <p className="text-xs text-gray-400">SML Mini CRM &middot; Real-time</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs text-green-400">Live</span>
-            </div>
-            <ThemeToggle />
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span className="text-xs text-green-400">Live</span>
           </div>
         </div>
       </header>
@@ -196,6 +204,7 @@ export default function KpiPage() {
             { key: "all", label: "ทั้งหมด" }, { key: "alert", label: `ต้องดูแล (${s.alertCount})` },
             { key: "staff", label: "👔 พนักงาน" }, { key: "pipeline", label: "🎯 ปิดการขาย" },
             { key: "inactive", label: `😴 ลูกค้าหลุด (${(s.inactiveCount || 0) + (s.atRiskCount || 0)})` },
+            { key: "revenue", label: "💰 รายได้" },
             { key: "customers", label: "👥 ลูกค้า" }, { key: "rooms", label: "💬 ห้อง" },
           ] as const).map(({ key, label }) => (
             <button key={key} onClick={() => { setTab(key); setStaffFilter(""); }}
@@ -474,6 +483,55 @@ export default function KpiPage() {
                 </div>
               )}
             </div>
+          </section>
+        )}
+
+        {/* Revenue Section */}
+        {(tab === "all" || tab === "revenue") && revenue && (revenue.totalPipeline > 0 || revenue.wonRevenue > 0) && (
+          <section>
+            <h2 className="text-lg font-bold mb-3">💰 มูลค่า Deal &amp; รายได้</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
+                <p className="text-[11px] text-blue-400 mb-1">💼 Pipeline รวม</p>
+                <p className="text-2xl font-bold text-blue-300">{revenue.totalPipeline > 0 ? formatTHB(revenue.totalPipeline) : "-"}</p>
+                <p className="text-[11px] text-gray-500 mt-1">{revenue.pipelineCount} deal ที่กำลังดำเนินการ</p>
+              </div>
+              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+                <p className="text-[11px] text-emerald-400 mb-1">✅ ปิดการขายได้</p>
+                <p className="text-2xl font-bold text-emerald-300">{revenue.wonRevenue > 0 ? formatTHB(revenue.wonRevenue) : "-"}</p>
+                <p className="text-[11px] text-gray-500 mt-1">{revenue.wonCount} deal</p>
+              </div>
+              <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
+                <p className="text-[11px] text-red-400 mb-1">❌ ปิดไม่ได้</p>
+                <p className="text-2xl font-bold text-red-300">{revenue.lostRevenue > 0 ? formatTHB(revenue.lostRevenue) : "-"}</p>
+                <p className="text-[11px] text-gray-500 mt-1">{revenue.lostCount} deal</p>
+              </div>
+            </div>
+
+            {/* Win Rate by Value */}
+            {(revenue.wonRevenue > 0 || revenue.lostRevenue > 0) && (
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-4">
+                <p className="text-sm font-medium mb-3">อัตราปิดตามมูลค่า</p>
+                <div className="flex h-6 rounded-lg overflow-hidden mb-2">
+                  {revenue.wonRevenue > 0 && (
+                    <div className="bg-emerald-500 flex items-center justify-center text-[10px] font-bold text-white"
+                      style={{ width: `${(revenue.wonRevenue / (revenue.wonRevenue + revenue.lostRevenue)) * 100}%`, minWidth: 40 }}>
+                      {Math.round((revenue.wonRevenue / (revenue.wonRevenue + revenue.lostRevenue)) * 100)}%
+                    </div>
+                  )}
+                  {revenue.lostRevenue > 0 && (
+                    <div className="bg-red-500/70 flex items-center justify-center text-[10px] font-bold text-white"
+                      style={{ width: `${(revenue.lostRevenue / (revenue.wonRevenue + revenue.lostRevenue)) * 100}%`, minWidth: 40 }}>
+                      {Math.round((revenue.lostRevenue / (revenue.wonRevenue + revenue.lostRevenue)) * 100)}%
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-4 text-[11px]">
+                  <span className="text-emerald-400">✅ ปิดได้ {formatTHB(revenue.wonRevenue)}</span>
+                  <span className="text-red-400">❌ ปิดไม่ได้ {formatTHB(revenue.lostRevenue)}</span>
+                </div>
+              </div>
+            )}
           </section>
         )}
 

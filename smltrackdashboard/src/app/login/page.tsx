@@ -8,12 +8,17 @@ export default function LoginPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // ถ้า login แล้ว redirect ไปหน้าหลัก
+  // ถ้า login แล้ว redirect ไปหน้าหลัก หรือ onboarding ถ้ายังไม่ setup
   useEffect(() => {
     if (status === "authenticated") {
-      router.replace("/dashboard");
+      const setupComplete = (session?.user as any)?.setupComplete;
+      if (setupComplete === false) {
+        router.replace("/dashboard/onboarding");
+      } else {
+        router.replace("/dashboard");
+      }
     }
-  }, [status, router]);
+  }, [status, session, router]);
 
   if (status === "loading") {
     return (

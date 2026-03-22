@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeProvider";
 
 interface AdviceItem {
   priority: "critical" | "warning" | "opportunity" | "info";
@@ -139,32 +137,8 @@ export default function AdvicePage() {
         className="sticky top-0 z-30 backdrop-blur-md border-b theme-border"
         style={{ background: "var(--bg-secondary)" }}
       >
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 text-sm theme-text-secondary hover:opacity-80 transition-opacity"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              กลับ
-            </Link>
-            <h1 className="text-lg font-bold theme-text">
-              🦐 น้องกุ้ง — AI Advisor
-            </h1>
-          </div>
-          <ThemeToggle />
+        <div className="max-w-5xl mx-auto px-4 py-3 pl-10 md:pl-4">
+          <h1 className="text-base font-bold theme-text">🦐 น้องกุ้ง — AI Advisor</h1>
         </div>
       </header>
 

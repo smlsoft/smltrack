@@ -1,8 +1,0 @@
-SHELL=/bin/bash
-PATH=/usr/local/bin:/usr/bin:/bin
-
-# น้องกุ้ง — AI Advisor ทุก 1 ชม. (sentiment + pipeline + summary)
-0 * * * * cd /app && python advisor.py >> /var/log/advisor.log 2>&1
-
-# CRM Advisor — follow-up + ลูกค้าหลุด ทุก 6 ชม. (ประหยัด token)
-0 */6 * * * cd /app && python advisor-crm.py >> /var/log/advisor-crm.log 2>&1

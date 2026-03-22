@@ -63,11 +63,12 @@ export async function GET() {
   try {
     const db = await getDB();
 
-    const [allSkills, allAnalytics, allMeta, totalMessages] = await Promise.all([
+    const [allSkills, allAnalytics, allMeta, totalMessages, allCustomers] = await Promise.all([
       db.collection("user_skills").find().toArray(),
       db.collection("chat_analytics").find().toArray(),
       db.collection("groups_meta").find().toArray(),
       db.collection("messages").countDocuments(),
+      db.collection("customers").find({}, { projection: { pipelineStage: 1, dealValue: 1 } }).toArray(),
     ]);
 
     // ดึงข้อความทุกห้อง (เฉพาะ field ที่ต้องใช้ + เรียงตามเวลา)
@@ -277,6 +278,18 @@ export async function GET() {
       }))
       .sort((a, b) => b.daysSinceLastMsg - a.daysSinceLastMsg);
 
+    // === Revenue from customers.dealValue ===
+    const activePipelineStages = ["interested", "quoting", "negotiating", "following_up"];
+    const totalPipelineValue = allCustomers
+      .filter((c) => activePipelineStages.includes(c.pipelineStage || "new"))
+      .reduce((sum, c) => sum + (c.dealValue || 0), 0);
+    const wonRevenue = allCustomers
+      .filter((c) => c.pipelineStage === "closed_won")
+      .reduce((sum, c) => sum + (c.dealValue || 0), 0);
+    const lostRevenue = allCustomers
+      .filter((c) => c.pipelineStage === "closed_lost")
+      .reduce((sum, c) => sum + (c.dealValue || 0), 0);
+
     return NextResponse.json({
       summary: {
         totalRooms: allAnalytics.length,
@@ -309,6 +322,14 @@ export async function GET() {
       },
       inactiveCustomers: inactiveCustomers.slice(0, 30),
       atRiskCustomers: atRiskCustomers.slice(0, 20),
+      revenue: {
+        totalPipeline: totalPipelineValue,
+        wonRevenue,
+        lostRevenue,
+        pipelineCount: allCustomers.filter((c) => activePipelineStages.includes(c.pipelineStage || "new") && (c.dealValue || 0) > 0).length,
+        wonCount: allCustomers.filter((c) => c.pipelineStage === "closed_won" && (c.dealValue || 0) > 0).length,
+        lostCount: allCustomers.filter((c) => c.pipelineStage === "closed_lost" && (c.dealValue || 0) > 0).length,
+      },
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

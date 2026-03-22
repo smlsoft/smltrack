@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeProvider";
 
 interface DailyCost { _id: string; totalTokens: number; totalCost: number; calls: number; }
 interface FeatureCost { _id: string; totalTokens: number; totalCost: number; calls: number; avgTokens: number; }
@@ -87,15 +85,9 @@ export default function CostsPage() {
   return (
     <div className="min-h-screen theme-bg theme-text">
       <header className="border-b border-gray-800 px-6 py-4 sticky top-0 bg-gray-950/95 backdrop-blur z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="text-gray-400 hover:text-white text-xl">&larr;</Link>
-            <div>
-              <h1 className="text-xl font-bold">💰 AI Cost Tracker</h1>
-              <p className="text-xs text-gray-400">ค่าใช้จ่าย AI แบบละเอียด</p>
-            </div>
-          </div>
-          <ThemeToggle />
+        <div className="pl-10 md:pl-0">
+          <h1 className="text-base font-bold">💰 AI Cost Tracker</h1>
+          <p className="text-xs text-gray-400">ค่าใช้จ่าย AI แบบละเอียด</p>
         </div>
       </header>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface Message {
   _id: string;
@@ -44,6 +44,29 @@ interface Group {
   platform?: string;
 }
 
+interface ReplyTemplate {
+  _id: string;
+  title: string;
+  content: string;
+  category: string;
+  usageCount: number;
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  greeting: "ทักทาย",
+  pricing: "ราคา",
+  followup: "ติดตาม",
+  closing: "ปิดการขาย",
+  custom: "กำหนดเอง",
+};
+const CATEGORY_COLORS: Record<string, string> = {
+  greeting: "text-blue-400",
+  pricing: "text-emerald-400",
+  followup: "text-amber-400",
+  closing: "text-purple-400",
+  custom: "text-gray-400",
+};
+
 const SENTIMENT_LABELS: Record<string, string> = {
   green: "ปกติ",
   yellow: "ติดตาม",
@@ -85,6 +108,10 @@ export default function IPhoneChat({
   const [showHistory, setShowHistory] = useState(false);
   const [logs, setLogs] = useState<AnalysisLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchLogs = async () => {
     setLoadingLogs(true);
@@ -94,6 +121,30 @@ export default function IPhoneChat({
       if (Array.isArray(data)) setLogs(data);
     } catch {}
     setLoadingLogs(false);
+  };
+
+  const fetchTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    try {
+      const res = await fetch("/dashboard/api/templates");
+      const data = await res.json();
+      if (Array.isArray(data)) setTemplates(data);
+    } catch {}
+    setLoadingTemplates(false);
+  }, []);
+
+  const handleCopyTemplate = async (template: ReplyTemplate) => {
+    try {
+      await navigator.clipboard.writeText(template.content);
+      setCopiedId(template._id);
+      // bump usage count
+      fetch("/dashboard/api/templates", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: template._id }),
+      }).catch(() => {});
+      setTimeout(() => setCopiedId(null), 1500);
+    } catch {}
   };
 
   const lastMsgId = msgs.length > 0 ? msgs[msgs.length - 1]._id : "";
@@ -265,9 +316,67 @@ export default function IPhoneChat({
           <div ref={bottomRef} />
         </div>
 
-        {/* Home Indicator */}
-        <div className="iphone-home py-2 flex justify-center shrink-0">
-          <div className="iphone-home-bar w-32 h-1 rounded-full"></div>
+        {/* Quick Reply Templates Panel */}
+        {showTemplates && (
+          <div className="iphone-history border-t theme-border px-3 py-2 max-h-[240px] overflow-y-auto shrink-0">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold theme-text-secondary">⚡ Quick Reply</span>
+              <button onClick={() => setShowTemplates(false)} className="text-xs theme-text-muted hover:theme-text">&times;</button>
+            </div>
+            {loadingTemplates ? (
+              <p className="text-[10px] text-center py-2 theme-text-muted">Loading...</p>
+            ) : templates.length === 0 ? (
+              <p className="text-[10px] text-center py-3 theme-text-muted">
+                ยังไม่มี template —{" "}
+                <a href="/dashboard/templates" className="text-blue-400 underline">เพิ่มที่นี่</a>
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {templates.map((t) => (
+                  <button
+                    key={t._id}
+                    onClick={() => handleCopyTemplate(t)}
+                    className="w-full text-left rounded-lg px-2.5 py-2 text-[11px] transition iphone-history-card hover:opacity-80 active:scale-[0.98]"
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-medium theme-text">{t.title}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[9px] ${CATEGORY_COLORS[t.category] || "text-gray-400"}`}>
+                          {CATEGORY_LABELS[t.category] || t.category}
+                        </span>
+                        {copiedId === t._id ? (
+                          <span className="text-[9px] text-emerald-400 font-bold">✓ คัดลอก</span>
+                        ) : (
+                          <span className="text-[9px] text-gray-500">📋</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="theme-text-muted leading-relaxed line-clamp-2">{t.content}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quick Reply Button Bar */}
+        <div className="iphone-home px-4 py-1.5 flex items-center justify-between shrink-0">
+          <button
+            onClick={() => {
+              setShowTemplates((prev) => !prev);
+              if (!showTemplates) fetchTemplates();
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-medium transition ${
+              showTemplates
+                ? "bg-amber-500/30 text-amber-300 border border-amber-500/30"
+                : "bg-gray-700/60 text-gray-400 hover:bg-gray-600/60 hover:text-gray-200"
+            }`}
+            title="Quick Reply Templates"
+          >
+            ⚡ Quick Reply
+          </button>
+          <div className="iphone-home-bar w-24 h-1 rounded-full" />
+          <div className="w-[80px]" />
         </div>
       </div>
     </div>

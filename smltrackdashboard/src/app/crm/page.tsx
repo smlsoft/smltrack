@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/ThemeProvider";
 
 interface Customer {
   _id: string;
@@ -20,8 +19,16 @@ interface Customer {
   pipelineStage: string;
   lastSentiment: { score: number; level: string; reason?: string } | null;
   lastPurchaseIntent: { score: number; level: string; reason?: string } | null;
+  dealValue?: number;
+  expectedCloseDate?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+function formatTHB(v: number) {
+  if (v >= 1000000) return `฿${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `฿${(v / 1000).toFixed(0)}K`;
+  return `฿${v.toLocaleString("th-TH")}`;
 }
 
 const STAGES: Record<string, { label: string; color: string; icon: string }> = {
@@ -79,27 +86,55 @@ export default function CrmPage() {
     count: customers.filter((c) => c.pipelineStage === key).length,
   }));
 
+  const activePipelineStages = ["interested", "quoting", "negotiating", "following_up"];
+  const totalPipelineValue = customers
+    .filter((c) => activePipelineStages.includes(c.pipelineStage))
+    .reduce((sum, c) => sum + (c.dealValue || 0), 0);
+  const wonValue = customers
+    .filter((c) => c.pipelineStage === "closed_won")
+    .reduce((sum, c) => sum + (c.dealValue || 0), 0);
+  const lostValue = customers
+    .filter((c) => c.pipelineStage === "closed_lost")
+    .reduce((sum, c) => sum + (c.dealValue || 0), 0);
+
   if (loading) return <div className="min-h-screen theme-bg flex items-center justify-center"><div className="theme-text-muted animate-pulse">Loading CRM...</div></div>;
 
   return (
     <div className="min-h-screen theme-bg theme-text">
       <header className="border-b theme-border px-6 py-4 sticky top-0 z-10" style={{ background: "var(--bg-primary)" }}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="theme-text-muted hover:theme-text text-xl">&larr;</Link>
-            <div>
-              <h1 className="text-xl font-bold">👥 CRM</h1>
-              <p className="text-xs theme-text-muted">SML Mini CRM &middot; ลูกค้าเพิ่มอัตโนมัติ &middot; {customers.length} ราย</p>
-            </div>
+        <div className="flex items-center justify-between pl-10 md:pl-0">
+          <div>
+            <h1 className="text-base font-bold">👥 CRM</h1>
+            <p className="text-xs theme-text-muted">ลูกค้าเพิ่มอัตโนมัติ &middot; {customers.length} ราย</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/kpi" className="px-3 py-1.5 rounded-lg text-xs font-medium theme-bg-card theme-border border hover:opacity-80 transition">📊 KPI</Link>
-            <ThemeToggle />
+            <Link href="/tasks" className="px-3 py-1.5 rounded-lg text-xs font-medium bg-cyan-900/50 border border-cyan-700/50 text-cyan-300 hover:text-white hover:bg-cyan-800/50 transition">📋 งาน</Link>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {/* Pipeline Value Banner */}
+        {(totalPipelineValue > 0 || wonValue > 0) && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+              <p className="text-[11px] text-blue-400 mb-1">💼 Pipeline รวม</p>
+              <p className="text-xl font-bold text-blue-300">{totalPipelineValue > 0 ? formatTHB(totalPipelineValue) : "-"}</p>
+              <p className="text-[10px] text-gray-500 mt-1">สนใจ, เสนอราคา, ต่อรอง, ติดตาม</p>
+            </div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <p className="text-[11px] text-emerald-400 mb-1">✅ ปิดการขายได้</p>
+              <p className="text-xl font-bold text-emerald-300">{wonValue > 0 ? formatTHB(wonValue) : "-"}</p>
+              <p className="text-[10px] text-gray-500 mt-1">{customers.filter((c) => c.pipelineStage === "closed_won").length} ราย</p>
+            </div>
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+              <p className="text-[11px] text-red-400 mb-1">❌ ปิดไม่ได้</p>
+              <p className="text-xl font-bold text-red-300">{lostValue > 0 ? formatTHB(lostValue) : "-"}</p>
+              <p className="text-[10px] text-gray-500 mt-1">{customers.filter((c) => c.pipelineStage === "closed_lost").length} ราย</p>
+            </div>
+          </div>
+        )}
+
         {/* Pipeline Kanban Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
           {stageCounts.map((s) => (
@@ -147,6 +182,7 @@ export default function CrmPage() {
                 <tr className="text-left text-[11px] theme-text-muted border-b theme-border">
                   <th className="pb-3 pr-4">ลูกค้า</th>
                   <th className="pb-3 px-2 text-center">Stage</th>
+                  <th className="pb-3 px-2 text-center">💰 มูลค่า</th>
                   <th className="pb-3 px-2 text-center">😊 ความรู้สึก</th>
                   <th className="pb-3 px-2 text-center">🛒 โอกาสซื้อ</th>
                   <th className="pb-3 px-2 text-center">📨 ข้อความ</th>
@@ -176,6 +212,13 @@ export default function CrmPage() {
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium text-white ${stage.color}`}>
                           {stage.icon} {stage.label}
                         </span>
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        {c.dealValue && c.dealValue > 0 ? (
+                          <span className="text-xs font-medium text-emerald-400">{formatTHB(c.dealValue)}</span>
+                        ) : (
+                          <span className="text-gray-600 text-xs">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-2 text-center">
                         {c.lastSentiment ? <Badge level={c.lastSentiment.level} label={SL[c.lastSentiment.level]} /> : "-"}

@@ -32,6 +32,7 @@ export async function PUT(
     const allowed = [
       "firstName", "lastName", "company", "position", "phone", "email",
       "lineId", "address", "notes", "customTags", "avatarUrl",
+      "dealValue", "expectedCloseDate", "winLossReason",
     ];
     const updates: any = { updatedAt: new Date() };
     for (const key of allowed) {
