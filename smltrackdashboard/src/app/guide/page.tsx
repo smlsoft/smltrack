@@ -30,7 +30,7 @@ const STEPS: Step[] = [
     number: 2,
     icon: "🤖",
     title: "ตั้งค่า AI API Key",
-    summary: "ใส่ API Key เพื่อให้น้องปูและน้องกุ้งทำงานได้",
+    summary: "ใส่ API Key เพื่อให้น้องกุ้งและน้องกุ้งทำงานได้",
     details: [
       "สมัคร OpenRouter ที่ openrouter.ai → รับ API Key ฟรี",
       "สมัคร SambaNova ที่ cloud.sambanova.ai → ฟรี 100K tokens/วัน",
@@ -45,7 +45,7 @@ const STEPS: Step[] = [
     number: 3,
     icon: "📱",
     title: "เชื่อม LINE OA / Facebook / Instagram",
-    summary: "ต่อ webhook เพื่อให้น้องปูรับ-ส่งข้อความในแชทได้",
+    summary: "ต่อ webhook เพื่อให้น้องกุ้งรับ-ส่งข้อความในแชทได้",
     details: [
       "LINE OA: ไปที่ developers.line.biz → สร้าง Messaging API channel",
       "LINE: คัดลอก Channel Access Token และ Channel Secret ใส่ .env",
@@ -84,7 +84,7 @@ const STEPS: Step[] = [
       "KPI: ดู KPI ปิดการขาย, ลูกค้าหลุด, ยอดขาย รายวัน/สัปดาห์/เดือน",
       "น้องกุ้ง: ดู AI Advice ที่วิเคราะห์ทุก 1 ชั่วโมง เรียงตาม priority",
       "AI Cost: ดูค่าใช้จ่าย AI tokens แยกตาม provider และ feature",
-      "Config: ตั้ง personality น้องปูแยกต่อห้อง, ตั้งเตือนตอบช้า",
+      "Config: ตั้ง personality น้องกุ้งแยกต่อห้อง, ตั้งเตือนตอบช้า",
     ],
   },
 ];

@@ -11,7 +11,7 @@ async function backfill() {
 
   // ดึง distinct sourceId + userName pairs
   const pairs = await db.collection("messages").aggregate([
-    { $match: { userName: { $ne: null, $nin: ["น้องปู", "User", null] } } },
+    { $match: { userName: { $ne: null, $nin: ["น้องกุ้ง", "User", null] } } },
     { $group: {
       _id: { sourceId: "$sourceId", userName: "$userName" },
       count: { $sum: 1 },
@@ -30,7 +30,7 @@ async function backfill() {
 
     const nameUpper = userName.toUpperCase();
     const isStaff = nameUpper.startsWith("SML");
-    const isBot = nameUpper.includes("น้องปู");
+    const isBot = nameUpper.includes("น้องกุ้ง");
     if (isBot) continue;
 
     // ตรวจว่ามี skill อยู่แล้วไหม

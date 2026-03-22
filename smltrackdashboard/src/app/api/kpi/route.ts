@@ -8,7 +8,7 @@ function isStaffName(name: string | null) {
   return (name || "").toUpperCase().startsWith("SML");
 }
 function isBotName(name: string | null) {
-  return (name || "").includes("น้องปู");
+  return (name || "").includes("น้องกุ้ง");
 }
 
 interface ResponseTimeResult {

@@ -126,7 +126,7 @@ export default function GroupPage({ params }: { params: Promise<{ id: string }> 
                   )}
                   {msg.role === "assistant" && (
                     <p className="text-xs text-blue-400 font-medium mb-1">
-                      น้องปู
+                      น้องกุ้ง
                     </p>
                   )}
 
