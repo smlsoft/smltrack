@@ -132,6 +132,9 @@ async function getBotConfig(sourceId, sourceMeta) {
         groupName: sourceMeta?.groupName || null,
         botName: "น้องปู",
         systemPrompt: DEFAULT_PROMPT,
+        aiAutoReply: false,         // น้องกุ้งตอบแทนอัตโนมัติ (ใช้ Reply API ฟรี)
+        aiReplyMode: "off",        // off | auto | mention | keyword
+        aiReplyKeywords: [],        // keywords ที่ trigger ให้น้องกุ้งตอบ
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -1163,6 +1166,104 @@ async function replyToLine(replyToken, text, quickReplies) {
   }
 }
 
+// === น้องกุ้งตอบแทน — ตรวจสอบว่าควรตอบหรือไม่ ===
+async function shouldAiReply(config, text, userName, source) {
+  const mode = config.aiReplyMode || "off";
+  if (mode === "off") return false;
+
+  // ไม่ตอบข้อความจากพนักงาน SML
+  if (userName && userName.startsWith("SML")) return false;
+
+  // mode: auto → ตอบทุกข้อความ (ยกเว้นพนักงาน)
+  if (mode === "auto") return true;
+
+  // mode: mention → ตอบเมื่อมีคำว่า "น้องปู" หรือ "น้องกุ้ง" หรือชื่อ bot
+  if (mode === "mention") {
+    const botName = (config.botName || "น้องปู").toLowerCase();
+    const lower = text.toLowerCase();
+    return lower.includes(botName) || lower.includes("น้องปู") || lower.includes("น้องกุ้ง");
+  }
+
+  // mode: keyword → ตอบเมื่อมี keyword ที่กำหนด
+  if (mode === "keyword") {
+    const keywords = config.aiReplyKeywords || [];
+    if (keywords.length === 0) return false;
+    const lower = text.toLowerCase();
+    return keywords.some((kw) => lower.includes(kw.toLowerCase()));
+  }
+
+  return false;
+}
+
+// === น้องกุ้งตอบแทนใน LINE (ใช้ Reply API — ฟรี!) ===
+async function aiReplyToLine(event, sourceId, userName, text, config) {
+  const startTime = Date.now();
+
+  // ดึง context จาก RAG
+  const contextDocs = await searchMessages(sourceId, text).catch(() => []);
+  const contextStr = contextDocs.slice(0, 5)
+    .map((d) => `[${d.role === "assistant" ? config.botName || "น้องปู" : d.userName || "User"}] ${d.content}`)
+    .join("\n");
+
+  const systemPrompt = config.systemPrompt || DEFAULT_PROMPT;
+  const messages = [
+    { role: "system", content: `${systemPrompt}\n\nประวัติสนทนา:\n${contextStr || "(ไม่มี)"}` },
+    { role: "user", content: text },
+  ];
+
+  // เรียก AI (ใช้ LightAI ประหยัด token)
+  const reply = await callLightAI(messages, { maxTokens: 300, timeout: 15000 }).catch(() => null);
+  if (!reply) {
+    console.log("[AI-Reply] AI ไม่ตอบ — skip");
+    return;
+  }
+
+  // ส่งกลับด้วย Reply API (ฟรี!)
+  const sent = await replyToLine(event.replyToken, reply);
+  if (sent) {
+    // เก็บ reply ลง MongoDB
+    await saveMsg(sourceId, {
+      role: "assistant",
+      userName: config.botName || "น้องปู",
+      content: reply,
+      messageType: "text",
+      isAiReply: true,
+    }, "line");
+
+    // Track cost
+    const elapsed = Date.now() - startTime;
+    console.log(`[AI-Reply] ✅ ตอบใน ${elapsed}ms: ${reply.substring(0, 50)}`);
+  }
+}
+
+// === น้องกุ้งตอบแทนใน Facebook/Instagram (Send API — ฟรี!) ===
+async function aiReplyToMeta(senderId, text, sourceId, platform) {
+  const contextDocs = await searchMessages(sourceId, text).catch(() => []);
+  const contextStr = contextDocs.slice(0, 5)
+    .map((d) => `[${d.role === "assistant" ? "น้องปู" : d.userName || "User"}] ${d.content}`)
+    .join("\n");
+
+  const messages = [
+    { role: "system", content: `${DEFAULT_PROMPT}\n\nประวัติสนทนา:\n${contextStr || "(ไม่มี)"}` },
+    { role: "user", content: text },
+  ];
+
+  const reply = await callLightAI(messages, { maxTokens: 300, timeout: 15000 }).catch(() => null);
+  if (!reply) return;
+
+  const sent = await sendMetaMessage(senderId, reply);
+  if (sent) {
+    await saveMsg(sourceId, {
+      role: "assistant",
+      userName: "น้องปู",
+      content: reply,
+      messageType: "text",
+      isAiReply: true,
+    }, platform);
+    console.log(`[AI-Reply] ✅ ${platform}: ${reply.substring(0, 50)}`);
+  }
+}
+
 // === Push message (fallback — รองรับ Quick Reply ด้วย) ===
 async function pushToLine(to, text, quickReplies) {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
@@ -1664,6 +1765,16 @@ app.post("/webhook/meta", express.raw({ type: "*/*" }), async (req, res) => {
 
         console.log(`[Meta/${platform}] ${userName}@${sourceId.substring(0, 12)}: ${msgText.substring(0, 60)}`)
         analyzeChat(sourceId, userName, msgText, senderId, { type: "user" }).catch((e) => console.error("[Meta/Skill] Catch:", e.message))
+
+        // น้องกุ้งตอบแทนใน Facebook/Instagram (Send API — ฟรี!)
+        const metaConfig = await getBotConfig(sourceId)
+        const metaShouldReply = await shouldAiReply(metaConfig, msgText, userName, { type: "user" })
+        if (metaShouldReply) {
+          console.log(`[AI-Reply] น้องกุ้งตอบแทน → ${platform} ${sourceId.substring(0, 12)}`)
+          aiReplyToMeta(senderId, msgText, sourceId, platform).catch((e) =>
+            console.error(`[AI-Reply] ${platform} error:`, e.message)
+          )
+        }
       }
 
       // handle image attachment
@@ -1729,7 +1840,7 @@ app.post("/webhook", express.raw({ type: "*/*" }), async (req, res) => {
     }
     getBotConfig(sourceId, { type: source.type, groupName: contactName }).catch(() => {});
 
-    // === หูทิพย์: เก็บข้อความอย่างเดียว ไม่ตอบ ===
+    // === เก็บข้อความ + น้องกุ้งตอบแทน (ถ้าเปิด) ===
     try {
       await processEvent(event);
       const userName = await getUserName(source).catch(() => "User");
@@ -1737,11 +1848,23 @@ app.post("/webhook", express.raw({ type: "*/*" }), async (req, res) => {
       const lineUserId = source.userId || null;
       console.log(`[Listen] ${userName}@${sourceId.substring(0, 8)}: ${messageText.substring(0, 40)}`);
 
-      // ตรวจจับตอบช้า: พนักงาน SML ตอบ → เช็คเวลาตั้งแต่ข้อความลูกค้าล่าสุด
+      // ตรวจจับตอบช้า
       checkSlowResponse(sourceId, userName).catch(() => {});
 
-      // Skill-Based Analytics: อัปเดต skill ของคนนี้ (non-blocking)
+      // Skill-Based Analytics
       analyzeChat(sourceId, userName, messageText, lineUserId, source).catch((e) => console.error("[Skill] Catch:", e.message));
+
+      // === น้องกุ้งตอบแทน (LINE Reply API — ฟรี!) ===
+      if (msg.text && event.replyToken) {
+        const config = await getBotConfig(sourceId);
+        const shouldReply = await shouldAiReply(config, msg.text, userName, source);
+        if (shouldReply) {
+          console.log(`[AI-Reply] น้องกุ้งตอบแทน → ${sourceId.substring(0, 8)}`);
+          aiReplyToLine(event, sourceId, userName, msg.text, config).catch((e) =>
+            console.error("[AI-Reply] Error:", e.message)
+          );
+        }
+      }
     } catch (e) {
       console.error("[Listen] Error:", e.message);
     }
@@ -1756,11 +1879,13 @@ app.get("/config/:sourceId", async (req, res) => {
 });
 
 app.post("/config/:sourceId", express.json(), async (req, res) => {
-  const { systemPrompt, botName, model } = req.body;
+  const { systemPrompt, botName, model, aiReplyMode, aiReplyKeywords } = req.body;
   await setBotConfig(req.params.sourceId, {
     ...(systemPrompt !== undefined ? { systemPrompt } : {}),
     ...(botName !== undefined ? { botName } : {}),
     ...(model !== undefined ? { model } : {}),
+    ...(aiReplyMode !== undefined ? { aiReplyMode } : {}),
+    ...(aiReplyKeywords !== undefined ? { aiReplyKeywords } : {}),
   });
   res.json({ status: "ok" });
 });
