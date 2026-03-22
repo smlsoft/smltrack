@@ -1,6 +1,6 @@
 # AI Providers — วิธีสมัครและดึง API Key
 
-> SMLTrack ใช้ AI หลายตัวแบบ fallback chain (ตัวไหนล่มก็ข้ามไป)
+> OpenClaw Mini CRM ใช้ AI หลายตัวแบบ fallback chain (ตัวไหนล่มก็ข้ามไป)
 > **ฟรีทั้งหมด** — ไม่ต้องจ่ายเงิน
 
 ---

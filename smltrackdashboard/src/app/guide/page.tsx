@@ -76,7 +76,7 @@ const STEPS: Step[] = [
     number: 5,
     icon: "📊",
     title: "เริ่มดูข้อมูลใน Dashboard",
-    summary: "ใช้งาน features ต่าง ๆ ของ SML Mini CRM",
+    summary: "ใช้งาน features ต่าง ๆ ของ OpenClaw Mini CRM",
     details: [
       "Dashboard: ดูแชทแบบ Real-time ทุก 5 วินาที จัด drag-drop ได้",
       "Filter: กรองตาม sentiment ลูกค้า (ปกติ/ติดตาม/ไม่พอใจ) และโอกาสซื้อ",
@@ -136,7 +136,7 @@ export default function GuidePage() {
         <div className="flex items-center gap-3 pl-10 md:pl-0">
           <div>
             <h1 className="text-base font-bold">คู่มือการใช้งาน</h1>
-            <p className="text-xs theme-text-muted">SML Mini CRM — เริ่มต้นใช้งาน 5 ขั้นตอน</p>
+            <p className="text-xs theme-text-muted">OpenClaw Mini CRM — เริ่มต้นใช้งาน 5 ขั้นตอน</p>
           </div>
         </div>
       </header>
@@ -144,7 +144,7 @@ export default function GuidePage() {
       <main className="max-w-2xl mx-auto px-4 py-6">
         <div className="mb-6 p-4 bg-indigo-900/20 border border-indigo-700/30 rounded-xl">
           <p className="text-sm text-indigo-300 leading-relaxed">
-            ยินดีต้อนรับสู่ <strong>SML Mini CRM</strong> ระบบ AI Chat Intelligence สำหรับธุรกิจ<br />
+            ยินดีต้อนรับสู่ <strong>OpenClaw Mini CRM</strong> ระบบ AI Chat Intelligence สำหรับธุรกิจ<br />
             ทำตาม 5 ขั้นตอนด้านล่างเพื่อเริ่มใช้งานได้เลย คลิกแต่ละขั้นตอนเพื่อดูรายละเอียด
           </p>
         </div>

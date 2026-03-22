@@ -165,7 +165,7 @@ export default function KpiPage() {
         <div className="flex items-center justify-between pl-10 md:pl-0">
           <div>
             <h1 className="text-base font-bold">📊 KPI Dashboard</h1>
-            <p className="text-xs text-gray-400">SML Mini CRM &middot; Real-time</p>
+            <p className="text-xs text-gray-400">OpenClaw Mini CRM &middot; Real-time</p>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />

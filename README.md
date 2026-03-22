@@ -1,11 +1,11 @@
-# SMLTrack — AI Chat Intelligence for LINE OA
+# OpenClaw Mini CRM — AI Chat Intelligence for LINE OA
 
 > ระบบ AI วิเคราะห์แชทอัจฉริยะ สำหรับธุรกิจที่ใช้ LINE OA
 > ฟังทุกห้อง วิเคราะห์ทุกข้อความ แนะนำทุกโอกาส — อัตโนมัติ 100%
 
 ---
 
-## SMLTrack ทำอะไรได้?
+## OpenClaw Mini CRM ทำอะไรได้?
 
 ### ฟังทุกแชท วิเคราะห์ทุกข้อความ
 

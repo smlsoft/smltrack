@@ -1,5 +1,5 @@
 /**
- * SML Mini CRM — AI Agent
+ * OpenClaw Mini CRM — AI Agent
  * LINE/Facebook/Instagram webhook → เก็บ MongoDB → RAG → AI → ตอบ
  * All-in-One: Multi-channel + RAG + AI Agent + MCP + Analytics
  */
@@ -2502,7 +2502,7 @@ app.post("/webhook/telegram", express.json(), async (req, res) => {
   }
 
   if (text === "/start") {
-    await sendTelegram(chatId, "🦐 น้องกุ้งค่ะ! กรุณาเชื่อมต่อบัญชีผ่าน SML Mini CRM Dashboard ก่อนนะคะ\n\nไปที่: ตั้งค่า → เชื่อมต่อ → Telegram");
+    await sendTelegram(chatId, "🦐 น้องกุ้งค่ะ! กรุณาเชื่อมต่อบัญชีผ่าน OpenClaw Mini CRM Dashboard ก่อนนะคะ\n\nไปที่: ตั้งค่า → เชื่อมต่อ → Telegram");
     return;
   }
 
@@ -2654,7 +2654,7 @@ app.get("/setup-telegram-webhook", async (req, res) => {
 
 // Health check
 app.get("/", (req, res) => {
-  res.json({ status: "ok", service: "SMLTrack AI Agent" });
+  res.json({ status: "ok", service: "OpenClaw Mini CRM AI Agent" });
 });
 
 // === Start ===

@@ -1,11 +1,11 @@
 #!/bin/bash
 # ==============================================
-# SMLTrack — Setup Hetzner VPS (รันครั้งแรกครั้งเดียว)
+# OpenClaw Mini CRM — Setup Hetzner VPS (รันครั้งแรกครั้งเดียว)
 # Usage: ssh root@YOUR_IP 'bash -s' < scripts/setup-server.sh
 # ==============================================
 set -e
 
-echo "=== SMLTrack Server Setup ==="
+echo "=== OpenClaw Mini CRM Server Setup ==="
 
 # 1. Update system
 echo "[1/6] Updating system..."

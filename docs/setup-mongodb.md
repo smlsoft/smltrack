@@ -1,6 +1,6 @@
 # MongoDB Atlas — วิธีสมัครและตั้งค่า
 
-> ฐานข้อมูลหลักของ SMLTrack (ฟรี M0 Tier)
+> ฐานข้อมูลหลักของ OpenClaw Mini CRM (ฟรี M0 Tier)
 
 ---
 

@@ -1,6 +1,6 @@
-# SMLTrack — คู่มือติดตั้งบน Docker Desktop
+# OpenClaw Mini CRM — คู่มือติดตั้งบน Docker Desktop
 
-> คู่มือสำหรับติดตั้งระบบ SMLTrack (AI Chat Intelligence) บนเครื่องใหม่
+> คู่มือสำหรับติดตั้งระบบ OpenClaw Mini CRM (AI Chat Intelligence) บนเครื่องใหม่
 
 ---
 

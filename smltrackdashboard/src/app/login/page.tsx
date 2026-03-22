@@ -45,7 +45,7 @@ export default function LoginPage() {
               💬
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">
-              SML Mini CRM
+              OpenClaw Mini CRM
             </h1>
             <p className="text-sm text-gray-400 mt-1 text-center">
               AI Chat Intelligence
@@ -92,7 +92,7 @@ export default function LoginPage() {
 
         {/* Version */}
         <p className="text-center text-xs text-gray-700 mt-4">
-          SML Mini CRM v1.0
+          OpenClaw Mini CRM v1.0
         </p>
       </div>
     </div>

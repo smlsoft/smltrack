@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================
-# SMLTrack — Deploy to Hetzner VPS
+# OpenClaw Mini CRM — Deploy to Hetzner VPS
 # Usage: ./scripts/deploy.sh
 # ==============================================
 set -e
@@ -16,7 +16,7 @@ if [ -z "$REMOTE_HOST" ]; then
   exit 1
 fi
 
-echo "=== SMLTrack Deploy to ${REMOTE_USER}@${REMOTE_HOST} ==="
+echo "=== OpenClaw Mini CRM Deploy to ${REMOTE_USER}@${REMOTE_HOST} ==="
 
 # Step 1: Sync files (exclude secrets + runtime)
 echo "[1/4] Syncing files..."

@@ -1,6 +1,6 @@
 # LINE Messaging API — วิธีสมัครและตั้งค่า
 
-> เชื่อมต่อ LINE OA กับ SMLTrack เพื่อรับ-ส่งข้อความ
+> เชื่อมต่อ LINE OA กับ OpenClaw Mini CRM เพื่อรับ-ส่งข้อความ
 
 ---
 
@@ -15,7 +15,7 @@
 
 1. เข้า https://developers.line.biz/console/
 2. ล็อกอิน → กด **Create a new provider** (หรือเลือก provider ที่มี)
-3. ตั้งชื่อ Provider เช่น `SMLTrack`
+3. ตั้งชื่อ Provider เช่น `OpenClaw Mini CRM`
 4. กด **Create a Messaging API channel**
 5. เลือก LINE OA ที่สร้างไว้ → กรอกข้อมูล → กด **Create**
 

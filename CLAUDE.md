@@ -1,4 +1,4 @@
-# SML Mini CRM — Project Rules
+# OpenClaw Mini CRM — Project Rules
 
 ## Architecture
 ```
@@ -16,7 +16,7 @@ Dashboard (Docker) → Google Login → แสดงสนทนา + CRM + KPI 
 ```
 
 ## Brand
-- **ชื่อ:** SML Mini CRM
+- **ชื่อ:** OpenClaw Mini CRM
 - **Tagline:** AI Chat Intelligence — LINE · Facebook · Instagram
 - **Domain:** crm.satistang.com (production) / smlclaw.satistang.com (legacy)
 - **Deploy:** Hetzner VPS + Docker Compose

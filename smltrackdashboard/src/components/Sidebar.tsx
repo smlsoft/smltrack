@@ -159,7 +159,7 @@ export default function Sidebar() {
             💬
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-bold text-white leading-tight">SML Mini CRM</h1>
+            <h1 className="text-sm font-bold text-white leading-tight">OpenClaw Mini CRM</h1>
             <p className="text-[10px] text-gray-500 leading-tight">AI Chat Intelligence</p>
           </div>
         </div>

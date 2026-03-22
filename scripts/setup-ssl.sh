@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================
-# SMLTrack — Setup SSL Certificate (Let's Encrypt)
+# OpenClaw Mini CRM — Setup SSL Certificate (Let's Encrypt)
 # Usage: ./scripts/setup-ssl.sh YOUR_DOMAIN
 # ==============================================
 set -e

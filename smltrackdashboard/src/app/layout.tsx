@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SML Mini CRM — AI Chat Intelligence",
+  title: "OpenClaw Mini CRM — AI Chat Intelligence",
   description: "ระบบ Mini CRM อัจฉริยะ วิเคราะห์สนทนา LINE / Facebook / Instagram อัตโนมัติ",
 };
 

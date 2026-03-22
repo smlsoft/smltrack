@@ -1,4 +1,4 @@
-# Deploy SMLTrack บน Hetzner VPS
+# Deploy OpenClaw Mini CRM บน Hetzner VPS
 
 ## สเปค VPS แนะนำ
 
